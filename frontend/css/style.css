@@ -1,31 +1,31 @@
 :root {
-    /* 🎨 Чёрно-фиолетовая тема */
-    --bg-primary: #0d0817;
-    --bg-secondary: #0a0612;
-    --bg-chat: #0f0a1a;
-    --bg-message-out: #5b2a8c;
-    --bg-message-in: #1c1429;
-    --bg-hover: #1f1530;
-    --bg-active: #3d1f6b;
-    --bg-input: #1a1226;
-    --bg-modal: #15101f;
+    /* 🎨 Приглушённая чёрно-фиолетовая тема */
+    --bg-primary: #161320;
+    --bg-secondary: #110e1a;
+    --bg-chat: #181522;
+    --bg-message-out: #3d3157;
+    --bg-message-in: #221d2e;
+    --bg-hover: #221d2e;
+    --bg-active: #2d2541;
+    --bg-input: #1d1929;
+    --bg-modal: #1a1626;
     
-    --text-primary: #f0e8ff;
-    --text-secondary: #8a7aa3;
-    --text-link: #b48fff;
-    --text-time: #6b5d80;
+    --text-primary: #e8e4f0;
+    --text-secondary: #8a839c;
+    --text-link: #9d8cbf;
+    --text-time: #6b6580;
     
-    --accent: #8b5cf6;
-    --accent-hover: #7c3aed;
-    --accent-glow: #a78bfa;
-    --accent-deep: #5b21b6;
-    --accent-green: #4ade80;
-    --accent-red: #f87171;
-    --accent-orange: #fbbf24;
+    --accent: #7c6f99;
+    --accent-hover: #8d7fae;
+    --accent-glow: #a395c4;
+    --accent-deep: #4a3f6b;
+    --accent-green: #6db580;
+    --accent-red: #c97070;
+    --accent-orange: #c9a570;
     
-    --border: #1f1530;
-    --shadow: rgba(91, 33, 182, 0.3);
-    --shadow-purple: rgba(139, 92, 246, 0.4);
+    --border: #221d2e;
+    --shadow: rgba(0, 0, 0, 0.4);
+    --shadow-purple: rgba(124, 111, 153, 0.2);
     
     --radius-sm: 6px;
     --radius-md: 10px;
