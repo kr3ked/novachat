@@ -1,31 +1,31 @@
 :root {
-    /* 🎨 Приглушённая чёрно-фиолетовая тема */
-    --bg-primary: #161320;
-    --bg-secondary: #110e1a;
-    --bg-chat: #181522;
-    --bg-message-out: #3d3157;
-    --bg-message-in: #221d2e;
-    --bg-hover: #221d2e;
-    --bg-active: #2d2541;
-    --bg-input: #1d1929;
-    --bg-modal: #1a1626;
+    /* 🌃 Ночной сине-индиго (Discord-style) */
+    --bg-primary: #1e2030;
+    --bg-secondary: #181a26;
+    --bg-chat: #222538;
+    --bg-message-out: #3d4567;
+    --bg-message-in: #2a2d42;
+    --bg-hover: #2a2d42;
+    --bg-active: #3d4567;
+    --bg-input: #252839;
+    --bg-modal: #1f2235;
     
-    --text-primary: #e8e4f0;
-    --text-secondary: #8a839c;
-    --text-link: #9d8cbf;
-    --text-time: #6b6580;
+    --text-primary: #e4e7f1;
+    --text-secondary: #8a90a8;
+    --text-link: #7c8fc7;
+    --text-time: #6a6f85;
     
-    --accent: #7c6f99;
-    --accent-hover: #8d7fae;
-    --accent-glow: #a395c4;
-    --accent-deep: #4a3f6b;
-    --accent-green: #6db580;
-    --accent-red: #c97070;
-    --accent-orange: #c9a570;
+    --accent: #5865f2;
+    --accent-hover: #4752c4;
+    --accent-glow: #818cf8;
+    --accent-deep: #3b41a3;
+    --accent-green: #57f287;
+    --accent-red: #ed4245;
+    --accent-orange: #fee75c;
     
-    --border: #221d2e;
-    --shadow: rgba(0, 0, 0, 0.4);
-    --shadow-purple: rgba(124, 111, 153, 0.2);
+    --border: #2a2d42;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --shadow-purple: rgba(88, 101, 242, 0.3);
     
     --radius-sm: 6px;
     --radius-md: 10px;
