@@ -1200,3 +1200,92 @@ input::placeholder, textarea::placeholder {
         right: 14px;
     }
 }
+/* ========== ИСПРАВЛЕНИЕ ИНТЕРФЕЙСА НА МОБИЛЬНЫХ ========== */
+
+/* Используем динамическую высоту экрана */
+@supports (height: 100dvh) {
+    body {
+        height: 100dvh;
+    }
+    .screen {
+        height: 100dvh;
+    }
+    .chat-view, .channel-view {
+        height: 100dvh;
+    }
+    .sidebar {
+        height: 100dvh;
+    }
+    .slide-menu {
+        height: 100dvh;
+    }
+}
+
+/* Фикс для всех мобильных */
+@media (max-width: 768px) {
+    html, body {
+        height: 100%;
+        overflow: hidden;
+        position: fixed;
+        width: 100%;
+        top: 0;
+        left: 0;
+    }
+    
+    #app {
+        height: 100%;
+        overflow: hidden;
+    }
+    
+    .screen.active {
+        height: 100%;
+    }
+    
+    .chat-view, .channel-view {
+        height: 100%;
+        max-height: 100%;
+    }
+    
+    /* Поле ввода всегда внизу */
+    .message-input-area {
+        position: sticky;
+        bottom: 0;
+        background: var(--bg-secondary);
+        z-index: 10;
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+    }
+    
+    .messages-area {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Для безопасной зоны iPhone сверху */
+    .chat-header {
+        padding-top: env(safe-area-inset-top);
+        height: calc(var(--header-height) + env(safe-area-inset-top));
+    }
+    
+    .sidebar-header {
+        padding-top: env(safe-area-inset-top);
+        height: calc(var(--header-height) + env(safe-area-inset-top));
+    }
+}
+
+/* Фикс scroll при открытой клавиатуре */
+@media (max-width: 768px) {
+    .messages-container {
+        padding-bottom: 8px;
+    }
+    
+    /* Когда поле в фокусе - убираем фон */
+    .message-input-wrapper textarea:focus {
+        font-size: 16px; /* Не даём iOS зумить */
+    }
+    
+    input, textarea {
+        font-size: 16px !important; /* Не даём iOS зумить */
+    }
+}
