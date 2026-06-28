@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+novachat.db
+uploads/
+.env
+venv/
