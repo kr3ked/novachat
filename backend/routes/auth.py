@@ -117,3 +117,62 @@ def check_auth():
     if not user:
         return jsonify({'error': 'Не авторизован'}), 401
     return jsonify({'user': user.to_dict()}), 200
+    @auth_bp.route('/delete', methods=['DELETE'])
+def delete_account():
+    """Удаление своего аккаунта"""
+    from routes.users import get_current_user
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Не авторизован'}), 401
+    
+    data = request.get_json() or {}
+    password = data.get('password', '')
+    
+    if not password:
+        return jsonify({'error': 'Введите пароль для подтверждения'}), 400
+    
+    if not user.check_password(password):
+        return jsonify({'error': 'Неверный пароль'}), 401
+    
+    user_id = user.id
+    
+    try:
+        # Удаляем связанные данные
+        from models import Message, Comment, Chat, Channel, message_likes, chat_members, channel_subscribers
+        
+        # Удаляем лайки пользователя
+        db.session.execute(
+            message_likes.delete().where(message_likes.c.user_id == user_id)
+        )
+        
+        # Удаляем комментарии
+        Comment.query.filter_by(user_id=user_id).delete()
+        
+        # Помечаем сообщения как удалённые
+        Message.query.filter_by(sender_id=user_id).update({
+            'is_deleted': True,
+            'text': None
+        })
+        
+        # Удаляем из участников чатов
+        db.session.execute(
+            chat_members.delete().where(chat_members.c.user_id == user_id)
+        )
+        
+        # Удаляем из подписчиков каналов
+        db.session.execute(
+            channel_subscribers.delete().where(channel_subscribers.c.user_id == user_id)
+        )
+        
+        # Удаляем каналы где пользователь владелец
+        Channel.query.filter_by(owner_id=user_id).delete()
+        
+        # Удаляем пользователя
+        db.session.delete(user)
+        db.session.commit()
+        
+        return jsonify({'message': 'Аккаунт удалён'}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f'Error deleting account: {e}')
+        return jsonify({'error': 'Ошибка при удалении'}), 500

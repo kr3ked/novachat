@@ -1380,3 +1380,72 @@ input::placeholder, textarea::placeholder {
 .comment-author:hover {
     text-decoration: underline;
 }
+/* ========== ОПАСНАЯ ЗОНА ========== */
+.danger-zone {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+}
+
+.danger-zone-title {
+    font-size: 12px;
+    color: var(--accent-red);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #c93b3b 0%, #8a2828 100%) !important;
+    color: white;
+    box-shadow: 0 4px 16px rgba(201, 59, 59, 0.3);
+}
+
+.btn-danger:hover {
+    background: linear-gradient(135deg, #d44949 0%, #a13333 100%) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(201, 59, 59, 0.5);
+}
+
+.btn-secondary {
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+    background: var(--bg-hover);
+}
+
+.delete-warning {
+    background: rgba(237, 66, 69, 0.1);
+    border: 1px solid rgba(237, 66, 69, 0.3);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.delete-warning i {
+    font-size: 32px;
+    color: var(--accent-red);
+    margin-bottom: 12px;
+}
+
+.delete-warning p {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.delete-warning ul {
+    text-align: left;
+    margin: 12px 0 0 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.delete-warning ul li {
+    margin-bottom: 4px;
+}

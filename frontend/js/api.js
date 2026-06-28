@@ -53,6 +53,15 @@ const API = {
             return API.request('/auth/check');
         }
     },
+    async check() {
+    return API.request('/auth/check');
+},
+async deleteAccount(password) {
+    return API.request('/auth/delete', {
+        method: 'DELETE',
+        body: { password }
+    });
+},
 
     users: {
         async getProfile() { return API.request('/users/me'); },
