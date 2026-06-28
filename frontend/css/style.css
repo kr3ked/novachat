@@ -1288,4 +1288,95 @@ input::placeholder, textarea::placeholder {
     input, textarea {
         font-size: 16px !important; /* Не даём iOS зумить */
     }
+}/* ========== ПРОСМОТР ПРОФИЛЯ ========== */
+.user-profile-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0;
+}
+
+.profile-avatar-big {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 48px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(88, 101, 242, 0.4);
+    border: 3px solid rgba(88, 101, 242, 0.3);
+}
+
+.profile-avatar-big img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-name-big {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    text-align: center;
+}
+
+.profile-username-big {
+    font-size: 14px;
+    color: var(--accent-glow);
+    margin-bottom: 4px;
+}
+
+.profile-status-big {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+}
+
+.profile-status-big.online {
+    color: var(--accent-green);
+}
+
+.profile-info-section {
+    width: 100%;
+    background: var(--bg-input);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+}
+
+.profile-info-label {
+    font-size: 12px;
+    color: var(--accent-glow);
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.profile-info-text {
+    font-size: 14px;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.profile-actions {
+    width: 100%;
+    margin-top: 12px;
+}
+
+/* Кликабельные аватары и шапки */
+.chat-header-info,
+.message-sender,
+.comment-author {
+    cursor: pointer;
+}
+
+.message-sender:hover,
+.comment-author:hover {
+    text-decoration: underline;
 }

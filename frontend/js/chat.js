@@ -136,7 +136,7 @@ const ChatUI = {
             <div class="message ${isOutgoing ? 'outgoing' : 'incoming'}" data-message-id="${msg.id}">
                 <div class="message-bubble">
                     ${forwardHtml}
-                    ${isGroup ? `<div class="message-sender">${senderName}</div>` : ''}
+                   ${isGroup && msg.sender ? `<div class="message-sender" onclick="App.showUserProfile(${msg.sender.id})">${senderName}</div>` : ''}
                     ${replyHtml}
                     <div class="message-text">${this.escapeHtml(msg.text || '')}</div>
                     ${reactionsHtml}
@@ -272,7 +272,7 @@ const ChatUI = {
                     <div class="comment-item">
                         <div class="avatar avatar-sm"><i class="fas fa-user"></i></div>
                         <div class="comment-content">
-                            <div class="comment-author">${c.user.display_name}</div>
+                            <div class="comment-author" onclick="App.showUserProfile(${c.user.id})">${c.user.display_name}</div>
                             <div class="comment-text">${this.escapeHtml(c.text)}</div>
                             <div class="comment-time">${this.formatTime(c.created_at)}</div>
                         </div>

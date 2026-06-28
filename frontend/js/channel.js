@@ -45,18 +45,26 @@ const ChannelUI = {
         }
     },
 
-    renderPosts(posts) {
-        const container = document.getElementById('channel-posts-container');
-        if (posts.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-bullhorn"></i>
-                    <p>Пока нет постов</p>
-                </div>`;
-            return;
-        }
-        container.innerHTML = posts.map(post => this.renderPost(post)).join('');
-    },
+renderPosts(posts) {
+    const container = document.getElementById('channel-posts-container');
+    if (posts.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-bullhorn"></i>
+                <p>Пока нет постов</p>
+            </div>`;
+        return;
+    }
+    // Разворачиваем массив: старые сверху, новые снизу
+    const sortedPosts = [...posts].reverse();
+    container.innerHTML = sortedPosts.map(post => this.renderPost(post)).join('');
+    
+    // Скроллим вниз к новым постам
+    setTimeout(() => {
+        const area = container.closest('.messages-area');
+        if (area) area.scrollTop = area.scrollHeight;
+    }, 50);
+},
 
     renderPost(post) {
         const time = ChatUI.formatTime(post.created_at);
@@ -109,20 +117,26 @@ const ChannelUI = {
             </div>`;
     },
 
-    async createPost() {
-        const input = document.getElementById('channel-post-input');
-        const text = input.value.trim();
-        if (!text || !this.currentChannel) return;
-        try {
-            await API.messages.createPost(this.currentChannel.id, text);
-            input.value = '';
-            input.style.height = 'auto';
-            await this.loadPosts(this.currentChannel.id);
-            Toast.show('Пост опубликован!', 'success');
-        } catch (error) {
-            Toast.show('Ошибка публикации', 'error');
-        }
-    },
+async createPost() {
+    const input = document.getElementById('channel-post-input');
+    const text = input.value.trim();
+    if (!text || !this.currentChannel) return;
+    try {
+        await API.messages.createPost(this.currentChannel.id, text);
+        input.value = '';
+        input.style.height = 'auto';
+        await this.loadPosts(this.currentChannel.id);
+        // Скроллим вниз после добавления
+        setTimeout(() => {
+            const container = document.getElementById('channel-posts-container');
+            const area = container.closest('.messages-area');
+            if (area) area.scrollTop = area.scrollHeight;
+        }, 100);
+        Toast.show('Пост опубликован!', 'success');
+    } catch (error) {
+        Toast.show('Ошибка публикации', 'error');
+    }
+},
 
     async toggleSubscribe() {
         if (!this.currentChannel) return;

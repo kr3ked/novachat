@@ -328,6 +328,39 @@
                 </div>
             </div>
         </div>
+<!-- МОДАЛ: Просмотр чужого профиля -->
+<div class="modal" id="modal-user-profile">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Профиль</h3>
+            <button class="btn-icon" onclick="UI.closeModal('modal-user-profile')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="user-profile-view">
+                <div class="profile-avatar-big" id="view-profile-avatar"></div>
+                <div class="profile-name-big" id="view-profile-name">Имя</div>
+                <div class="profile-username-big" id="view-profile-username">@username</div>
+                <div class="profile-status-big" id="view-profile-status">был(а) недавно</div>
+                
+                <div class="profile-info-section" id="view-profile-bio-section" style="display:none;">
+                    <div class="profile-info-label">О себе</div>
+                    <div class="profile-info-text" id="view-profile-bio"></div>
+                </div>
+                
+                <div class="profile-info-section">
+                    <div class="profile-info-label">Телефон</div>
+                    <div class="profile-info-text" id="view-profile-phone"></div>
+                </div>
+                
+                <div class="profile-actions">
+                    <button class="btn btn-primary btn-full" id="view-profile-message-btn">
+                        <i class="fas fa-paper-plane"></i> Написать сообщение
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
         <div class="modal" id="modal-profile">
             <div class="modal-content">
