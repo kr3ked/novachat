@@ -88,6 +88,7 @@ const Auth = {
     async logout() {
         try { await API.auth.logout(); } catch (e) {}
 
+
         this.currentUser = null;
         API.setToken(null);
         localStorage.removeItem('novachat_user');
@@ -95,9 +96,25 @@ const Auth = {
 
         if (App.socket) App.socket.disconnect();
 
+        
+
         document.getElementById('auth-screen').classList.add('active');
         document.getElementById('main-screen').classList.remove('active');
         UI.toggleMenu();
         Toast.show('Вы вышли из аккаунта');
+    },async logout() {
+    try { await API.auth.logout(); } catch (e) {}
+
+    
+    this.currentUser = null;
+    API.setToken(null);
+    localStorage.removeItem('novachat_user');
+    localStorage.removeItem('novachat_token');
+
+    if (App.socket) App.socket.disconnect();
+
+    document.getElementById('auth-screen').classList.add('active');
+    document.getElementById('main-screen').classList.remove('active');
+    UI.toggleMenu;
     }
-};
+}

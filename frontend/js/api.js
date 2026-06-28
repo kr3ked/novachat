@@ -32,27 +32,32 @@ const API = {
             throw error;
         }
     },
-
-    auth: {
-        async register(phone, password, displayName, username) {
-            return API.request('/auth/register', {
-                method: 'POST',
-                body: { phone, password, display_name: displayName, username }
-            });
-        },
-        async login(phone, password) {
-            return API.request('/auth/login', {
-                method: 'POST',
-                body: { phone, password }
-            });
-        },
-        async logout() {
-            return API.request('/auth/logout', { method: 'POST' });
-        },
-        async check() {
-            return API.request('/auth/check');
-        }
+auth: {
+    async register(phone, password, displayName, username) {
+        return API.request('/auth/register', {
+            method: 'POST',
+            body: { phone, password, display_name: displayName, username }
+        });
     },
+    async login(phone, password) {
+        return API.request('/auth/login', {
+            method: 'POST',
+            body: { phone, password }
+        });
+    },
+    async logout() {
+        return API.request('/auth/logout', { method: 'POST' });
+    },
+    async check() {
+        return API.request('/auth/check');
+    },
+    async deleteAccount(password) {
+        return API.request('/auth/delete-account', {
+            method: 'POST',
+            body: { password }
+        });
+    }
+},
     async check() {
     return API.request('/auth/check');
 },

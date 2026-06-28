@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
-from models import db, User
+from models import db, User, Chat, Channel, Message, Comment, message_likes, chat_members, channel_subscribers
 import re
 
 auth_bp = Blueprint('auth', __name__)
@@ -117,3 +117,98 @@ def check_auth():
     if not user:
         return jsonify({'error': 'Не авторизован'}), 401
     return jsonify({'user': user.to_dict()}), 200
+
+
+@auth_bp.route('/delete-account', methods=['POST'])
+def delete_account():
+    """Полное удаление аккаунта пользователя с подтверждением пароля"""
+    from routes.users import get_current_user
+    user = get_current_user()
+    
+    if not user:
+        return jsonify({'error': 'Не авторизован'}), 401
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Нет данных'}), 400
+
+    password = data.get('password', '').strip()
+    
+    if not password:
+        return jsonify({'error': 'Введите пароль для подтверждения'}), 400
+
+    # Проверяем пароль
+    if not user.check_password(password):
+        return jsonify({'error': 'Неверный пароль'}), 401
+
+    user_id = user.id
+    user_name = user.display_name
+
+    try:
+        # 1. Удаляем все реакции пользователя
+        db.session.execute(
+            message_likes.delete().where(message_likes.c.user_id == user_id)
+        )
+
+        # 2. Удаляем все комментарии пользователя
+        Comment.query.filter_by(user_id=user_id).delete()
+
+        # 3. Удаляем все сообщения пользователя (помечаем как удалённые)
+        Message.query.filter_by(sender_id=user_id).update({
+            'is_deleted': True,
+            'text': None
+        })
+
+        # 4. Удаляем пользователя из всех чатов
+        db.session.execute(
+            chat_members.delete().where(chat_members.c.user_id == user_id)
+        )
+
+        # 5. Удаляем пользователя из всех каналов
+        db.session.execute(
+            channel_subscribers.delete().where(channel_subscribers.c.user_id == user_id)
+        )
+
+        # 6. Удаляем все каналы пользователя (где он владелец)
+        owned_channels = Channel.query.filter_by(owner_id=user_id).all()
+        for channel in owned_channels:
+            # Удаляем всех подписчиков канала
+            db.session.execute(
+                channel_subscribers.delete().where(
+                    channel_subscribers.c.channel_id == channel.id
+                )
+            )
+            # Удаляем все посты канала
+            posts = Message.query.filter_by(channel_id=channel.id).all()
+            for post in posts:
+                # Удаляем реакции на посты
+                db.session.execute(
+                    message_likes.delete().where(message_likes.c.message_id == post.id)
+                )
+                # Удаляем комментарии к постам
+                Comment.query.filter_by(message_id=post.id).delete()
+            # Удаляем сами посты
+            Message.query.filter_by(channel_id=channel.id).delete()
+            # Удаляем канал
+            db.session.delete(channel)
+
+        # 7. Удаляем пустые приватные чаты (где остался только удалённый пользователь)
+        empty_chats = Chat.query.filter(
+            ~Chat.members.any()
+        ).all()
+        for chat in empty_chats:
+            Message.query.filter_by(chat_id=chat.id).delete()
+            db.session.delete(chat)
+
+        # 8. Удаляем самого пользователя
+        db.session.delete(user)
+        db.session.commit()
+
+        return jsonify({
+            'message': f'Аккаунт {user_name} удалён'
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f'Ошибка удаления аккаунта: {e}')
+        return jsonify({'error': 'Не удалось удалить аккаунт. Попробуйте позже.'}), 500

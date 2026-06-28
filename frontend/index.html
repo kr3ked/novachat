@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+odal<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -387,9 +387,16 @@
                 <label>О себе</label>
                 <textarea id="profile-bio" rows="3" placeholder="Расскажите о себе..."></textarea>
             </div>
-            <button class="btn btn-primary btn-full" onclick="App.updateProfile()">
-                <i class="fas fa-save"></i> Сохранить
-            </button>
+<button class="btn btn-primary btn-full" onclick="App.updateProfile()">
+    <i class="fas fa-save"></i> Сохранить
+</button>
+
+<div class="danger-zone">
+    <div class="danger-zone-title">⚠️ техническая зона</div>
+    <button class="btn btn-danger btn-full" onclick="UI.showDeleteAccount()">
+        <i class="fas fa-trash"></i> Удалить аккаунт
+    </button>
+</div>
             
             <div class="danger-zone">
                 <div class="danger-zone-title">Опасная зона</div>
@@ -487,5 +494,48 @@
     <script src="js/chat.js"></script>
     <script src="js/channel.js"></script>
     <script src="js/app.js"></script>
+<!-- МОДАЛ: Удаление аккаунта -->
+<div class="modal" id="modal-delete-account">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>⚠️ Удалить аккаунт</h3>
+            <button class="btn-icon" onclick="UI.closeModal('modal-delete-account')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="warning-box">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div>
+                    <strong>Это действие необратимо!</strong>
+                    <p>Будет удалено:</p>
+                    <ul>
+                        <li>Ваш аккаунт</li>
+                        <li>Все сообщения</li>
+                        <li>Все комментарии и реакции</li>
+                        <li>Все созданные вами каналы</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Введите пароль для подтверждения</label>
+                <div class="input-with-icon">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="delete-password" placeholder="Ваш пароль">
+                </div>
+            </div>
+            
+            <div id="delete-error" class="error-message"></div>
+            
+            <div class="delete-buttons">
+                <button class="btn btn-secondary btn-full" onclick="UI.closeModal('modal-delete-account')">
+                    Отмена
+                </button>
+                <button class="btn btn-danger btn-full" onclick="Auth.deleteAccount()" id="btn-confirm-delete">
+                    <i class="fas fa-trash"></i> Удалить навсегда
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
