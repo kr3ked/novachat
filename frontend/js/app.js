@@ -35,7 +35,7 @@ const App = {
     },
 
     connectSocket() {
-        this.socket = io('http://localhost:5000');
+        this.socket = io('https://novachat-backend-55fr.onrender.com');
         this.socket.on('connect', () => {
             console.log('🔌 WebSocket connected');
             this.socket.emit('authenticate', { token: API.token });

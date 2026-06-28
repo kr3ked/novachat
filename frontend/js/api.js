@@ -1,5 +1,5 @@
 const API = {
-    BASE_URL: 'http://localhost:5000/api',
+  BASE_URL: 'https://novachat-backend-55fr.onrender.com/api',
     token: localStorage.getItem('novachat_token'),
 
     setToken(token) {
