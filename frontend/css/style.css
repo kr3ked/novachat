@@ -1175,3 +1175,28 @@ input::placeholder, textarea::placeholder {
 @media (min-width: 769px) {
     .btn-back { display: none !important; }
 }
+/* ========== ИСПРАВЛЕНИЕ FAB НА МОБИЛЬНЫХ ========== */
+@media (max-width: 768px) {
+    .fab {
+        bottom: 80px;
+        right: 16px;
+        width: 52px;
+        height: 52px;
+        font-size: 18px;
+    }
+    
+    /* Учитываем безопасную зону iPhone */
+    @supports (padding: max(0px)) {
+        .fab {
+            bottom: max(80px, calc(80px + env(safe-area-inset-bottom)));
+        }
+    }
+}
+
+/* Для совсем маленьких экранов */
+@media (max-width: 480px) {
+    .fab {
+        bottom: 75px;
+        right: 14px;
+    }
+}
