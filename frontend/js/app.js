@@ -46,16 +46,11 @@ const App = {
         this.socket.on('new_message', (msg) => {
             ChatUI.appendMessage(msg);
             this.loadChats();
-        });this.socket.on('new_message', (msg) => {
-    ChatUI.appendMessage(msg);
-    this.loadChats();
-});
-
-// 👇 ДОБАВЬ ЭТО
-this.socket.on('chat_updated', (data) => {
-    console.log('💬 Chat updated:', data);
-    this.loadChats();
-});
+        });
+        this.socket.on('chat_updated', (data) => {
+            console.log('💬 Chat updated:', data);
+            this.loadChats();
+        });
         this.socket.on('user_typing', (data) => {
             if (ChatUI.currentChat && data.chat_id === ChatUI.currentChat.id) {
                 const indicator = document.getElementById('typing-indicator');
@@ -333,6 +328,76 @@ this.socket.on('chat_updated', (data) => {
         } catch (error) {
             Toast.show(error.error || 'Ошибка', 'error');
         }
+    },
+
+    async showUserProfile(userId) {
+        try {
+            const data = await API.users.getUser(userId);
+            const user = data.user;
+
+            const avatarEl = document.getElementById('view-profile-avatar');
+            if (user.avatar_url) {
+                avatarEl.innerHTML = `<img src="${user.avatar_url}" alt="">`;
+            } else {
+                avatarEl.innerHTML = user.display_name.charAt(0).toUpperCase();
+            }
+
+            document.getElementById('view-profile-name').textContent = user.display_name;
+
+            const usernameEl = document.getElementById('view-profile-username');
+            if (user.username) {
+                usernameEl.textContent = '@' + user.username;
+                usernameEl.style.display = 'block';
+            } else {
+                usernameEl.style.display = 'none';
+            }
+
+            const statusEl = document.getElementById('view-profile-status');
+            if (user.is_online) {
+                statusEl.textContent = 'онлайн';
+                statusEl.className = 'profile-status-big online';
+            } else {
+                const lastSeen = user.last_seen ? new Date(user.last_seen) : null;
+                if (lastSeen) {
+                    const now = new Date();
+                    const diff = Math.floor((now - lastSeen) / 1000 / 60);
+                    let statusText = 'был(а) недавно';
+                    if (diff < 5) statusText = 'был(а) только что';
+                    else if (diff < 60) statusText = `был(а) ${diff} мин. назад`;
+                    else if (diff < 1440) statusText = `был(а) ${Math.floor(diff/60)} ч. назад`;
+                    else statusText = `был(а) ${Math.floor(diff/1440)} дн. назад`;
+                    statusEl.textContent = statusText;
+                } else {
+                    statusEl.textContent = 'был(а) недавно';
+                }
+                statusEl.className = 'profile-status-big';
+            }
+
+            const bioSection = document.getElementById('view-profile-bio-section');
+            if (user.bio && user.bio.trim()) {
+                document.getElementById('view-profile-bio').textContent = user.bio;
+                bioSection.style.display = 'block';
+            } else {
+                bioSection.style.display = 'none';
+            }
+
+            document.getElementById('view-profile-phone').textContent = user.phone || 'Скрыт';
+
+            const msgBtn = document.getElementById('view-profile-message-btn');
+            if (user.id === Auth.currentUser.id) {
+                msgBtn.style.display = 'none';
+            } else {
+                msgBtn.style.display = 'flex';
+                msgBtn.onclick = () => {
+                    UI.closeModal('modal-user-profile');
+                    App.startChatWith(user.id);
+                };
+            }
+
+            UI.openModal('modal-user-profile');
+        } catch (error) {
+            Toast.show('Ошибка загрузки профиля', 'error');
+        }
     }
 };
 
@@ -382,7 +447,13 @@ const UI = {
         this.switchTab('channels');
         document.getElementById('search-input').focus();
     },
-    showChatInfo() { Toast.show('Информация о чате (в разработке)'); },
+    showChatInfo() {
+        if (ChatUI.currentChat && ChatUI.currentChat.other_user) {
+            App.showUserProfile(ChatUI.currentChat.other_user.id);
+        } else {
+            Toast.show('Информация о группе (в разработке)');
+        }
+    },
     closeChat() {
         document.getElementById('main-panel').classList.remove('active');
         document.getElementById('chat-view').style.display = 'none';
