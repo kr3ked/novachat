@@ -46,12 +46,8 @@ const API = {
                 body: { phone, password }
             });
         },
-        async logout() {
-            return API.request('/auth/logout', { method: 'POST' });
-        },
-        async check() {
-            return API.request('/auth/check');
-        },
+        async logout() { return API.request('/auth/logout', { method: 'POST' }); },
+        async check() { return API.request('/auth/check'); },
         async deleteAccount(password) {
             return API.request('/auth/delete-account', {
                 method: 'POST',
@@ -68,13 +64,11 @@ const API = {
         async uploadAvatar(file) {
             const formData = new FormData();
             formData.append('avatar', file);
-
             const response = await fetch(`${API.BASE_URL}/users/me/avatar`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${API.token}` },
                 body: formData
             });
-
             const data = await response.json();
             if (!response.ok) throw data;
             return data;
@@ -154,20 +148,24 @@ const API = {
         async uploadFile(file) {
             const formData = new FormData();
             formData.append('file', file);
-
             const response = await fetch(`${API.BASE_URL}/messages/upload`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${API.token}` },
                 body: formData
             });
-
             const data = await response.json();
             if (!response.ok) throw data;
             return data;
         },
-        async createPost(channelId, text) {
+        async createPost(channelId, text, fileUrl = null, fileName = null, fileType = null) {
             return API.request(`/messages/channel/${channelId}/post`, {
-                method: 'POST', body: { text }
+                method: 'POST',
+                body: {
+                    text,
+                    file_url: fileUrl,
+                    file_name: fileName,
+                    file_type: fileType
+                }
             });
         },
         async edit(messageId, text) {

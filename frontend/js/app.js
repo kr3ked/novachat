@@ -25,14 +25,10 @@ const App = {
         this.sendPing();
         if (this._pingInterval) clearInterval(this._pingInterval);
         this._pingInterval = setInterval(() => this.sendPing(), 30000);
-
         let lastActivity = Date.now();
         const onActivity = () => {
             const now = Date.now();
-            if (now - lastActivity > 30000) {
-                lastActivity = now;
-                this.sendPing();
-            }
+            if (now - lastActivity > 30000) { lastActivity = now; this.sendPing(); }
         };
         document.addEventListener('click', onActivity);
         document.addEventListener('keydown', onActivity);
@@ -51,19 +47,15 @@ const App = {
         avatarEl.innerHTML = this.getAvatarHtml(user, 'avatar-lg');
     },
 
-    // Возвращает HTML аватара с правильным базовым URL
     getAvatarHtml(user, extraClass = '') {
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
         if (user.avatar_url) {
-            const src = user.avatar_url.startsWith('http')
-                ? user.avatar_url
-                : backendBase + user.avatar_url;
+            const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
             return `<img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
         }
         return user.display_name.charAt(0).toUpperCase();
     },
 
-    // Устаревший метод — оставляем для совместимости
     getAvatarContent(user) {
         return this.getAvatarHtml(user);
     },
@@ -81,10 +73,7 @@ const App = {
             ChatUI.appendMessage(msg);
             this.loadChats();
         });
-        this.socket.on('chat_updated', (data) => {
-            console.log('💬 Chat updated:', data);
-            this.loadChats();
-        });
+        this.socket.on('chat_updated', () => { this.loadChats(); });
         this.socket.on('user_typing', (data) => {
             if (ChatUI.currentChat && data.chat_id === ChatUI.currentChat.id) {
                 const indicator = document.getElementById('typing-indicator');
@@ -96,9 +85,7 @@ const App = {
                 }, 3000);
             }
         });
-        this.socket.on('disconnect', () => {
-            console.log('❌ WebSocket disconnected');
-        });
+        this.socket.on('disconnect', () => { console.log('❌ WebSocket disconnected'); });
     },
 
     async loadChats() {
@@ -128,7 +115,8 @@ const App = {
             const isActive = ChatUI.currentChat && ChatUI.currentChat.id === chat.id;
             const icon = chat.chat_type === 'group' ? 'fa-users' : 'fa-user';
             const preview = chat.last_message
-                ? (chat.last_message.text || (chat.last_message.message_type === 'video' ? '🎥 Видео' : '🖼 Фото')).substring(0, 40)
+                ? (chat.last_message.text ||
+                   (chat.last_message.message_type === 'video' ? '🎥 Видео' : '🖼 Фото')).substring(0, 40)
                 : 'Нет сообщений';
             const time = chat.last_message ? ChatUI.formatTime(chat.last_message.created_at) : '';
 
@@ -180,7 +168,7 @@ const App = {
             const avatarContent = ch.avatar_url
                 ? `<img src="${ch.avatar_url}" alt="">`
                 : ch.name.charAt(0).toUpperCase();
-            const preview = ch.last_post ? (ch.last_post.text || '').substring(0, 40) : 'Нет постов';
+            const preview = ch.last_post ? (ch.last_post.text || '📎 Медиа').substring(0, 40) : 'Нет постов';
             const time = ch.last_post ? ChatUI.formatTime(ch.last_post.created_at) : '';
             return `
                 <div class="channel-item" onclick="ChannelUI.openChannel(${ch.id})">
@@ -369,7 +357,6 @@ const App = {
         }
     },
 
-    // Загрузка аватарки
     async uploadAvatar(input) {
         const file = input.files[0];
         if (!file) return;
@@ -381,7 +368,6 @@ const App = {
             return;
         }
 
-        // Показываем превью сразу
         const reader = new FileReader();
         reader.onload = (e) => {
             const avatarEl = document.getElementById('profile-avatar-preview');
@@ -392,25 +378,16 @@ const App = {
         Toast.show('Загрузка аватарки...', 'info');
         try {
             const data = await API.users.uploadAvatar(file);
-
-            // Обновляем данные пользователя
             Auth.currentUser = data.user;
             localStorage.setItem('novachat_user', JSON.stringify(data.user));
-
-            // Обновляем аватар в шапке меню
             this.updateUserInfo();
-
-            // Обновляем аватар в модале профиля
             const backendBase = 'https://novachat-backend-55fr.onrender.com';
             const src = data.avatar_url.startsWith('http') ? data.avatar_url : backendBase + data.avatar_url;
-            document.getElementById('profile-avatar-preview').innerHTML =
-                `<img src="${src}" alt="">`;
-
+            document.getElementById('profile-avatar-preview').innerHTML = `<img src="${src}" alt="">`;
             Toast.show('Аватарка обновлена! ✓', 'success');
         } catch (error) {
             Toast.show(error.error || 'Ошибка загрузки', 'error');
         }
-
         input.value = '';
     },
 
@@ -429,7 +406,6 @@ const App = {
             }
 
             document.getElementById('view-profile-name').textContent = user.display_name;
-
             const usernameEl = document.getElementById('view-profile-username');
             if (user.username) {
                 usernameEl.textContent = '@' + user.username;
@@ -472,6 +448,64 @@ const App = {
         } catch (error) {
             Toast.show('Ошибка загрузки профиля', 'error');
         }
+    },
+
+    // Показать инфо группы
+    async showGroupInfo() {
+        if (!ChatUI.currentChat) return;
+        const chat = ChatUI.currentChat;
+        const backendBase = 'https://novachat-backend-55fr.onrender.com';
+
+        // Аватар
+        const avatarEl = document.getElementById('group-info-avatar');
+        if (chat.avatar_url) {
+            const src = chat.avatar_url.startsWith('http') ? chat.avatar_url : backendBase + chat.avatar_url;
+            avatarEl.innerHTML = `<img src="${src}" alt="">`;
+        } else {
+            avatarEl.innerHTML = chat.name ? chat.name.charAt(0).toUpperCase() : '<i class="fas fa-users"></i>';
+        }
+
+        document.getElementById('group-info-name').textContent = chat.name || 'Группа';
+        document.getElementById('group-info-count').textContent =
+            `${chat.members_count} участников`;
+
+        // Список участников
+        const membersList = document.getElementById('group-info-members');
+        if (chat.members_list && chat.members_list.length > 0) {
+            membersList.innerHTML = chat.members_list.map(m => `
+                <div class="user-item" onclick="UI.closeModal('modal-group-info'); App.showUserProfile(${m.id})">
+                    <div class="avatar avatar-sm">${App.getAvatarHtml(m)}</div>
+                    <div>
+                        <div class="user-item-name">${m.display_name}</div>
+                        <div class="user-item-username">${m.username ? '@' + m.username : ''}</div>
+                    </div>
+                    ${m.is_online ? '<span style="width:8px;height:8px;border-radius:50%;background:var(--accent-green);flex-shrink:0;"></span>' : ''}
+                </div>`).join('');
+        } else {
+            membersList.innerHTML = '<div class="empty-state"><p>Нет участников</p></div>';
+        }
+
+        // Кнопка выйти из группы
+        const leaveBtn = document.getElementById('group-info-leave-btn');
+        if (chat.chat_type === 'group') {
+            leaveBtn.style.display = 'block';
+            leaveBtn.onclick = async () => {
+                if (!confirm('Покинуть группу?')) return;
+                try {
+                    await API.chats.leave(chat.id);
+                    UI.closeModal('modal-group-info');
+                    UI.closeChat();
+                    await App.loadChats();
+                    Toast.show('Вы покинули группу', 'success');
+                } catch (e) {
+                    Toast.show('Ошибка', 'error');
+                }
+            };
+        } else {
+            leaveBtn.style.display = 'none';
+        }
+
+        UI.openModal('modal-group-info');
     },
 
     formatLastSeen(dateStr) {
@@ -540,12 +574,9 @@ const UI = {
         this.toggleMenu();
         const user = Auth.currentUser;
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
-
         document.getElementById('profile-name').value = user.display_name || '';
         document.getElementById('profile-username').value = user.username || '';
         document.getElementById('profile-bio').value = user.bio || '';
-
-        // Показываем текущую аватарку
         const avatarEl = document.getElementById('profile-avatar-preview');
         if (user.avatar_url) {
             const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
@@ -553,7 +584,6 @@ const UI = {
         } else {
             avatarEl.innerHTML = `<span>${user.display_name.charAt(0).toUpperCase()}</span>`;
         }
-
         this.openModal('modal-profile');
     },
     showDeleteAccount() {
@@ -573,11 +603,14 @@ const UI = {
         this.switchTab('channels');
         document.getElementById('search-input').focus();
     },
+    // Обновлённый метод — открывает нужный профиль в зависимости от типа
     showChatInfo() {
-        if (ChatUI.currentChat && ChatUI.currentChat.other_user) {
-            App.showUserProfile(ChatUI.currentChat.other_user.id);
-        } else {
-            Toast.show('Информация о группе (в разработке)');
+        if (!ChatUI.currentChat) return;
+        const chat = ChatUI.currentChat;
+        if (chat.chat_type === 'private' && chat.other_user) {
+            App.showUserProfile(chat.other_user.id);
+        } else if (chat.chat_type === 'group') {
+            App.showGroupInfo();
         }
     },
     closeChat() {
@@ -615,6 +648,4 @@ const Toast = {
     }
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-    App.init();
-});
+document.addEventListener('DOMContentLoaded', () => { App.init(); });

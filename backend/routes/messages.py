@@ -12,8 +12,8 @@ ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'webm', 'ogg', 'mov', 'avi'}
 ALLOWED_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
 
-MAX_IMAGE_SIZE = 10 * 1024 * 1024   # 10MB
-MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100MB
+MAX_IMAGE_SIZE = 10 * 1024 * 1024
+MAX_VIDEO_SIZE = 100 * 1024 * 1024
 
 def get_file_type(filename):
     ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
@@ -88,7 +88,7 @@ def send_message(user):
     reply_to_id = data.get('reply_to_id')
     file_url = data.get('file_url')
     file_name = data.get('file_name')
-    file_type = data.get('file_type')  # 'image' или 'video'
+    file_type = data.get('file_type')
 
     if not chat_id:
         return jsonify({'error': 'Укажите chat_id'}), 400
@@ -101,7 +101,6 @@ def send_message(user):
     if user not in chat.members:
         return jsonify({'error': 'Вы не участник чата'}), 403
 
-    # Определяем тип сообщения
     if file_url:
         msg_type = file_type if file_type in ('image', 'video') else 'image'
     else:
@@ -137,7 +136,6 @@ def upload_file(user):
     if not file_type:
         return jsonify({'error': 'Формат не поддерживается'}), 400
 
-    # Проверка размера
     file.seek(0, os.SEEK_END)
     size = file.tell()
     file.seek(0)
@@ -153,7 +151,6 @@ def upload_file(user):
 
     upload_folder = current_app.config.get('UPLOAD_FOLDER', '/tmp/uploads')
     os.makedirs(upload_folder, exist_ok=True)
-
     file.save(os.path.join(upload_folder, filename))
 
     return jsonify({
@@ -169,21 +166,30 @@ def create_post(user, channel_id):
     channel = Channel.query.get(channel_id)
     if not channel:
         return jsonify({'error': 'Канал не найден'}), 404
-
     if channel.owner_id != user.id:
         return jsonify({'error': 'Нет прав на публикацию'}), 403
 
     data = request.get_json()
-    text = data.get('text', '').strip()
+    text = data.get('text', '').strip() if data.get('text') else ''
+    file_url = data.get('file_url')
+    file_name = data.get('file_name')
+    file_type = data.get('file_type')
 
-    if not text:
+    if not text and not file_url:
         return jsonify({'error': 'Пост не может быть пустым'}), 400
 
+    if file_url:
+        msg_type = file_type if file_type in ('image', 'video') else 'image'
+    else:
+        msg_type = 'text'
+
     message = Message(
-        text=text,
+        text=text if text else None,
         channel_id=channel_id,
         sender_id=user.id,
-        message_type='text'
+        message_type=msg_type,
+        file_url=file_url,
+        file_name=file_name
     )
 
     db.session.add(message)
@@ -210,7 +216,6 @@ def edit_message(user, message_id):
     message.text = new_text
     message.is_edited = True
     message.edited_at = datetime.utcnow()
-
     db.session.commit()
 
     return jsonify({'message': message.to_dict()}), 200
@@ -311,7 +316,6 @@ def get_comments(user, message_id):
         return jsonify({'error': 'Сообщение не найдено'}), 404
 
     comments = message.comments.all()
-
     return jsonify({
         'comments': [c.to_dict() for c in comments],
         'total': len(comments)
@@ -327,16 +331,10 @@ def add_comment(user, message_id):
 
     data = request.get_json()
     text = data.get('text', '').strip()
-
     if not text:
         return jsonify({'error': 'Комментарий не может быть пустым'}), 400
 
-    comment = Comment(
-        text=text,
-        message_id=message_id,
-        user_id=user.id
-    )
-
+    comment = Comment(text=text, message_id=message_id, user_id=user.id)
     db.session.add(comment)
     db.session.commit()
 

@@ -1,6 +1,7 @@
 const ChannelUI = {
     currentChannel: null,
     currentPosts: [],
+    pendingChannelFile: null,
 
     async openChannel(channelId) {
         try {
@@ -13,7 +14,7 @@ const ChannelUI = {
             document.getElementById('main-panel').classList.add('active');
 
             document.getElementById('channel-name').textContent = data.channel.name;
-            document.getElementById('channel-subs').textContent = 
+            document.getElementById('channel-subs').textContent =
                 `${data.channel.subscribers_count} подписчиков`;
 
             const subBtn = document.getElementById('btn-subscribe');
@@ -45,30 +46,58 @@ const ChannelUI = {
         }
     },
 
-renderPosts(posts) {
-    const container = document.getElementById('channel-posts-container');
-    if (posts.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-bullhorn"></i>
-                <p>Пока нет постов</p>
-            </div>`;
-        return;
-    }
-    // Разворачиваем массив: старые сверху, новые снизу
-    const sortedPosts = [...posts].reverse();
-    container.innerHTML = sortedPosts.map(post => this.renderPost(post)).join('');
-    
-    // Скроллим вниз к новым постам
-    setTimeout(() => {
-        const area = container.closest('.messages-area');
-        if (area) area.scrollTop = area.scrollHeight;
-    }, 50);
-},
+    renderPosts(posts) {
+        const container = document.getElementById('channel-posts-container');
+        if (posts.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-bullhorn"></i>
+                    <p>Пока нет постов</p>
+                </div>`;
+            return;
+        }
+
+        const sortedPosts = [...posts].reverse();
+        container.innerHTML = sortedPosts.map(post => this.renderPost(post)).join('');
+
+        setTimeout(() => {
+            const area = container.closest('.messages-area');
+            if (area) area.scrollTop = area.scrollHeight;
+        }, 50);
+    },
 
     renderPost(post) {
         const time = ChatUI.formatTime(post.created_at);
         const date = ChatUI.formatDate(post.created_at);
+        const backendBase = 'https://novachat-backend-55fr.onrender.com';
+
+        let mediaHtml = '';
+        if (post.file_url) {
+            const src = post.file_url.startsWith('http') ? post.file_url : backendBase + post.file_url;
+            const isVideo = post.message_type === 'video' ||
+                /\.(mp4|webm|ogg|mov|avi)$/i.test(post.file_url);
+
+            if (isVideo) {
+                mediaHtml = `
+                    <div class="message-video-wrapper" style="margin-bottom:8px;">
+                        <video class="message-video" controls preload="metadata">
+                            <source src="${src}" type="video/mp4">
+                            <source src="${src}" type="video/webm">
+                        </video>
+                        <div class="video-filename">${post.file_name || 'Видео'}</div>
+                    </div>`;
+            } else {
+                mediaHtml = `
+                    <div class="message-image-wrapper" style="margin-bottom:8px;">
+                        <img src="${src}"
+                             class="message-image"
+                             style="max-width:100%;"
+                             alt="${post.file_name || 'Фото'}"
+                             onclick="window.open('${src}', '_blank')"
+                             onerror="this.parentElement.style.display='none'" />
+                    </div>`;
+            }
+        }
 
         let reactionsHtml = '';
         if (post.reactions && Object.keys(post.reactions).length > 0) {
@@ -84,8 +113,8 @@ renderPosts(posts) {
 
         let forwardHtml = '';
         if (post.forwarded_from) {
-            const fwdName = post.forwarded_from.original_sender 
-                ? post.forwarded_from.original_sender.display_name 
+            const fwdName = post.forwarded_from.original_sender
+                ? post.forwarded_from.original_sender.display_name
                 : 'Неизвестный';
             forwardHtml = `
                 <div class="message-forwarded">
@@ -96,7 +125,8 @@ renderPosts(posts) {
         return `
             <div class="channel-post" data-post-id="${post.id}">
                 ${forwardHtml}
-                <div class="channel-post-text">${ChatUI.escapeHtml(post.text || '')}</div>
+                ${mediaHtml}
+                ${post.text ? `<div class="channel-post-text">${ChatUI.escapeHtml(post.text)}</div>` : ''}
                 ${reactionsHtml}
                 <div class="channel-post-footer">
                     <span class="message-time">${date}, ${time}</span>
@@ -117,26 +147,106 @@ renderPosts(posts) {
             </div>`;
     },
 
-async createPost() {
-    const input = document.getElementById('channel-post-input');
-    const text = input.value.trim();
-    if (!text || !this.currentChannel) return;
-    try {
-        await API.messages.createPost(this.currentChannel.id, text);
+    // Открыть пикер файла для канала
+    openChannelFilePicker() {
+        document.getElementById('channel-file-input').click();
+    },
+
+    // Обработка выбранного файла для канала
+    async handleChannelFileSelect(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const allowedImages = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+        const allowedVideos = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo'];
+        const isImage = allowedImages.includes(file.type);
+        const isVideo = allowedVideos.includes(file.type);
+
+        if (!isImage && !isVideo) {
+            Toast.show('Формат не поддерживается', 'error');
+            input.value = '';
+            return;
+        }
+
+        // Показываем превью
+        const preview = document.getElementById('channel-file-preview');
+        const previewImg = document.getElementById('channel-preview-img');
+        const previewVideo = document.getElementById('channel-preview-video');
+
+        if (isImage) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImg.src = e.target.result;
+                previewImg.style.display = 'block';
+                previewVideo.style.display = 'none';
+                preview.style.display = 'flex';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            previewImg.style.display = 'none';
+            previewVideo.style.display = 'flex';
+            previewVideo.querySelector('.video-preview-name').textContent = file.name;
+            preview.style.display = 'flex';
+        }
+
+        Toast.show('Загрузка...', 'info');
+        try {
+            const data = await API.messages.uploadFile(file);
+            this.pendingChannelFile = {
+                file_url: data.file_url,
+                file_name: data.file_name,
+                file_type: data.file_type
+            };
+            Toast.show(`${isVideo ? 'Видео' : 'Фото'} готово к публикации ✓`, 'success');
+        } catch (error) {
+            Toast.show(error.error || 'Ошибка загрузки', 'error');
+            this.cancelChannelFile();
+        }
+
+        input.value = '';
+    },
+
+    // Отменить прикреплённый файл
+    cancelChannelFile() {
+        this.pendingChannelFile = null;
+        document.getElementById('channel-file-preview').style.display = 'none';
+        document.getElementById('channel-preview-img').src = '';
+        document.getElementById('channel-preview-img').style.display = 'none';
+        const vp = document.getElementById('channel-preview-video');
+        if (vp) vp.style.display = 'none';
+    },
+
+    async createPost() {
+        const input = document.getElementById('channel-post-input');
+        const text = input.value.trim();
+        const fileData = this.pendingChannelFile;
+
+        if (!text && !fileData) return;
+        if (!this.currentChannel) return;
+
         input.value = '';
         input.style.height = 'auto';
-        await this.loadPosts(this.currentChannel.id);
-        // Скроллим вниз после добавления
-        setTimeout(() => {
-            const container = document.getElementById('channel-posts-container');
-            const area = container.closest('.messages-area');
-            if (area) area.scrollTop = area.scrollHeight;
-        }, 100);
-        Toast.show('Пост опубликован!', 'success');
-    } catch (error) {
-        Toast.show('Ошибка публикации', 'error');
-    }
-},
+        this.cancelChannelFile();
+
+        try {
+            await API.messages.createPost(
+                this.currentChannel.id,
+                text || null,
+                fileData ? fileData.file_url : null,
+                fileData ? fileData.file_name : null,
+                fileData ? fileData.file_type : null
+            );
+            await this.loadPosts(this.currentChannel.id);
+            setTimeout(() => {
+                const container = document.getElementById('channel-posts-container');
+                const area = container.closest('.messages-area');
+                if (area) area.scrollTop = area.scrollHeight;
+            }, 100);
+            Toast.show('Пост опубликован!', 'success');
+        } catch (error) {
+            Toast.show('Ошибка публикации', 'error');
+        }
+    },
 
     async toggleSubscribe() {
         if (!this.currentChannel) return;
@@ -151,11 +261,9 @@ async createPost() {
                 Toast.show('Вы подписались!', 'success');
             }
             const subBtn = document.getElementById('btn-subscribe');
-            if (this.currentChannel.is_subscribed) {
-                subBtn.innerHTML = '<i class="fas fa-bell-slash"></i>';
-            } else {
-                subBtn.innerHTML = '<i class="fas fa-bell"></i>';
-            }
+            subBtn.innerHTML = this.currentChannel.is_subscribed
+                ? '<i class="fas fa-bell-slash"></i>'
+                : '<i class="fas fa-bell"></i>';
             App.loadChannels();
         } catch (error) {
             Toast.show(error.error || 'Ошибка', 'error');
@@ -169,5 +277,38 @@ async createPost() {
         } catch (error) {
             Toast.show('Ошибка', 'error');
         }
+    },
+
+    // Показать профиль канала
+    showChannelInfo() {
+        if (!this.currentChannel) return;
+        const ch = this.currentChannel;
+        const backendBase = 'https://novachat-backend-55fr.onrender.com';
+
+        const avatarEl = document.getElementById('channel-info-avatar');
+        if (ch.avatar_url) {
+            const src = ch.avatar_url.startsWith('http') ? ch.avatar_url : backendBase + ch.avatar_url;
+            avatarEl.innerHTML = `<img src="${src}" alt="">`;
+        } else {
+            avatarEl.innerHTML = ch.name.charAt(0).toUpperCase();
+        }
+
+        document.getElementById('channel-info-name').textContent = ch.name;
+        document.getElementById('channel-info-handle').textContent = '@' + ch.handle;
+        document.getElementById('channel-info-subs').textContent =
+            `${ch.subscribers_count} подписчиков`;
+
+        const descSection = document.getElementById('channel-info-desc-section');
+        if (ch.description && ch.description.trim()) {
+            document.getElementById('channel-info-desc').textContent = ch.description;
+            descSection.style.display = 'block';
+        } else {
+            descSection.style.display = 'none';
+        }
+
+        const ownerSection = document.getElementById('channel-info-owner-section');
+        ownerSection.style.display = ch.is_owner ? 'block' : 'none';
+
+        UI.openModal('modal-channel-info');
     }
 };
