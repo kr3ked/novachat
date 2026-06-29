@@ -4,11 +4,12 @@ const App = {
 
     init() {
         Auth.init();
-        // Загружаем тему
         ThemeManager.init();
+        Notifications.init();
 
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.reactions-picker') && !e.target.closest('.message-action-btn')) {
+            if (!e.target.closest('.reactions-picker') &&
+                !e.target.closest('.message-action-btn')) {
                 document.getElementById('reactions-picker').style.display = 'none';
             }
             if (!e.target.closest('.context-menu')) {
@@ -60,13 +61,15 @@ const App = {
         document.getElementById('menu-avatar').innerHTML = this.getAvatarHtml(user, true);
     },
 
-    // ИСПРАВЛЕНО: добавлен onerror для аватарок
     getAvatarHtml(user, large = false) {
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
         if (user.avatar_url) {
-            const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
-            const fallback = user.display_name ? user.display_name.charAt(0).toUpperCase() : '?';
-            return `<img src="${src}" alt="" 
+            const src = user.avatar_url.startsWith('http')
+                ? user.avatar_url
+                : backendBase + user.avatar_url;
+            const fallback = user.display_name
+                ? user.display_name.charAt(0).toUpperCase() : '?';
+            return `<img src="${src}" alt=""
                 style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
                 onerror="this.parentElement.innerHTML='${fallback}'">`;
         }
@@ -77,18 +80,40 @@ const App = {
 
     connectSocket() {
         this.socket = io('https://novachat-backend-55fr.onrender.com');
+
         this.socket.on('connect', () => {
             console.log('🔌 WebSocket connected');
             this.socket.emit('authenticate', { token: API.token });
         });
+
         this.socket.on('authenticated', (data) => {
             console.log('✅ Authenticated, user:', data.user_id);
         });
+
         this.socket.on('new_message', (msg) => {
             ChatUI.appendMessage(msg);
             this.loadChats();
+            
+            // 🔔 Показать уведомление
+            if (Notifications.enabled) {
+                API.chats.getChat(msg.chat_id).then(data => {
+                    Notifications.notify(msg, data.chat);
+                }).catch(() => {
+                    Notifications.notify(msg, null);
+                });
+            }
         });
+
         this.socket.on('chat_updated', () => { this.loadChats(); });
+
+        this.socket.on('kicked_from_chat', (data) => {
+            Toast.show(`Вас выгнали из группы "${data.chat_name}"`, 'error');
+            if (ChatUI.currentChat && ChatUI.currentChat.id === data.chat_id) {
+                UI.closeChat();
+            }
+            this.loadChats();
+        });
+
         this.socket.on('user_typing', (data) => {
             if (ChatUI.currentChat && data.chat_id === ChatUI.currentChat.id) {
                 const indicator = document.getElementById('typing-indicator');
@@ -100,7 +125,10 @@ const App = {
                 }, 3000);
             }
         });
-        this.socket.on('disconnect', () => { console.log('❌ WebSocket disconnected'); });
+
+        this.socket.on('disconnect', () => {
+            console.log('❌ WebSocket disconnected');
+        });
     },
 
     async loadChats() {
@@ -121,7 +149,9 @@ const App = {
                 <div class="empty-state">
                     <i class="fas fa-comments"></i>
                     <p>У вас пока нет чатов</p>
-                    <button class="btn btn-small" onclick="UI.showNewChat()">Найти собеседника</button>
+                    <button class="btn btn-small" onclick="UI.showNewChat()">
+                        Найти собеседника
+                    </button>
                 </div>`;
             return;
         }
@@ -131,39 +161,54 @@ const App = {
             const icon = chat.chat_type === 'group' ? 'fa-users' : 'fa-user';
             const preview = chat.last_message
                 ? (chat.last_message.text ||
-                  (chat.last_message.message_type === 'video' ? '🎥 Видео' : '🖼 Фото')).substring(0, 40)
+                  (chat.last_message.message_type === 'video'
+                      ? '🎥 Видео' : '🖼 Фото')).substring(0, 40)
                 : 'Нет сообщений';
-            const time = chat.last_message ? ChatUI.formatTime(chat.last_message.created_at) : '';
+            const time = chat.last_message
+                ? ChatUI.formatTime(chat.last_message.created_at) : '';
 
             let avatarContent;
             if (chat.avatar_url) {
-                const src = chat.avatar_url.startsWith('http') ? chat.avatar_url : backendBase + chat.avatar_url;
+                const src = chat.avatar_url.startsWith('http')
+                    ? chat.avatar_url
+                    : backendBase + chat.avatar_url;
                 const fallback = (chat.name || 'Ч').charAt(0).toUpperCase();
-                avatarContent = `<img src="${src}" alt="" onerror="this.parentElement.innerHTML='${fallback}'">`;
+                avatarContent = `<img src="${src}" alt=""
+                    onerror="this.parentElement.innerHTML='${fallback}'">`;
             } else {
                 avatarContent = chat.name
                     ? chat.name.charAt(0).toUpperCase()
                     : `<i class="fas ${icon}"></i>`;
             }
 
+            const onlineDot = (chat.chat_type === 'private' &&
+                               chat.other_user && chat.other_user.is_online)
+                ? '<div class="online-dot"></div>' : '';
+
             return `
                 <div class="chat-item ${isActive ? 'active' : ''}"
                      data-chat-id="${chat.id}"
                      onclick="ChatUI.openChat(${chat.id})"
-                     oncontextmenu="App.showChatContextMenu(event, ${chat.id}, '${chat.chat_type}', '${(chat.name || '').replace(/'/g, "\\'")}')">
-                    <div class="avatar">${avatarContent}</div>
+                     oncontextmenu="App.showChatContextMenu(event, ${chat.id},
+                         '${chat.chat_type}',
+                         '${(chat.name || '').replace(/'/g, "\\'")}')">
+                    <div class="avatar" style="position:relative;">
+                        ${avatarContent}
+                        ${onlineDot}
+                    </div>
                     <div class="chat-item-info">
                         <div class="chat-item-top">
                             <span class="chat-item-name">${chat.name || 'Чат'}</span>
                             <span class="chat-item-time">${time}</span>
                         </div>
-                        <div class="chat-item-preview">${ChatUI.escapeHtml(preview)}</div>
+                        <div class="chat-item-preview">
+                            ${ChatUI.escapeHtml(preview)}
+                        </div>
                     </div>
                 </div>`;
         }).join('');
     },
 
-    // ===== КОНТЕКСТНОЕ МЕНЮ ЧАТА =====
     showChatContextMenu(event, chatId, chatType, chatName) {
         event.preventDefault();
         event.stopPropagation();
@@ -196,7 +241,6 @@ const App = {
         }
     },
 
-    // ===== КОНТЕКСТНОЕ МЕНЮ СООБЩЕНИЯ =====
     showMsgContextMenu(event, messageId, isOutgoing) {
         if (event && event.preventDefault) {
             event.preventDefault();
@@ -206,8 +250,10 @@ const App = {
 
         const menu = document.getElementById('msg-context-menu');
 
-        document.getElementById('ctx-msg-edit').style.display = isOutgoing ? 'flex' : 'none';
-        document.getElementById('ctx-msg-delete').style.display = isOutgoing ? 'flex' : 'none';
+        document.getElementById('ctx-msg-edit').style.display =
+            isOutgoing ? 'flex' : 'none';
+        document.getElementById('ctx-msg-delete').style.display =
+            isOutgoing ? 'flex' : 'none';
 
         document.getElementById('ctx-msg-reply').onclick = (e) => {
             e.stopPropagation();
@@ -252,7 +298,6 @@ const App = {
         if (event && event.clientX) {
             this._positionMenu(menu, event.clientX, event.clientY);
         } else {
-            // Мобильный — по центру снизу
             menu.style.display = 'block';
             menu.style.left = '50%';
             menu.style.top = 'auto';
@@ -337,16 +382,22 @@ const App = {
                 <div class="empty-state">
                     <i class="fas fa-bullhorn"></i>
                     <p>Нет подписок на каналы</p>
-                    <button class="btn btn-small" onclick="UI.showNewChannel()">Создать канал</button>
+                    <button class="btn btn-small" onclick="UI.showNewChannel()">
+                        Создать канал
+                    </button>
                 </div>`;
             return;
         }
         list.innerHTML = channels.map(ch => {
             const avatarContent = ch.avatar_url
-                ? `<img src="${ch.avatar_url}" alt="" onerror="this.parentElement.innerHTML='${ch.name.charAt(0).toUpperCase()}'">` 
+                ? `<img src="${ch.avatar_url}" alt=""
+                       onerror="this.parentElement.innerHTML='${ch.name.charAt(0).toUpperCase()}'">` 
                 : ch.name.charAt(0).toUpperCase();
-            const preview = ch.last_post ? (ch.last_post.text || '📎 Медиа').substring(0, 40) : 'Нет постов';
-            const time = ch.last_post ? ChatUI.formatTime(ch.last_post.created_at) : '';
+            const preview = ch.last_post
+                ? (ch.last_post.text || '📎 Медиа').substring(0, 40)
+                : 'Нет постов';
+            const time = ch.last_post
+                ? ChatUI.formatTime(ch.last_post.created_at) : '';
             return `
                 <div class="channel-item" onclick="ChannelUI.openChannel(${ch.id})">
                     <div class="avatar">${avatarContent}</div>
@@ -355,7 +406,9 @@ const App = {
                             <span class="chat-item-name">${ch.name}</span>
                             <span class="chat-item-time">${time}</span>
                         </div>
-                        <div class="chat-item-preview">${ChatUI.escapeHtml(preview)}</div>
+                        <div class="chat-item-preview">
+                            ${ChatUI.escapeHtml(preview)}
+                        </div>
                     </div>
                 </div>`;
         }).join('');
@@ -388,10 +441,16 @@ const App = {
                 html += '<div style="padding:8px 12px;font-size:12px;color:var(--text-secondary);font-weight:600;">ПОЛЬЗОВАТЕЛИ</div>';
                 html += usersData.users.map(u => `
                     <div class="chat-item" onclick="App.startChatWith(${u.id})">
-                        <div class="avatar">${App.getAvatarHtml(u)}</div>
+                        <div class="avatar" style="position:relative;">
+                            ${App.getAvatarHtml(u)}
+                            ${u.is_online ? '<div class="online-dot"></div>' : ''}
+                        </div>
                         <div class="chat-item-info">
                             <div class="chat-item-name">${u.display_name}</div>
-                            <div class="chat-item-preview">@${u.username || u.phone}</div>
+                            <div class="chat-item-preview"
+                                 style="color:${u.is_online ? 'var(--accent-green)' : ''}">
+                                ${u.is_online ? '● онлайн' : '@' + (u.username || u.phone)}
+                            </div>
                         </div>
                     </div>`).join('');
             }
@@ -402,7 +461,9 @@ const App = {
                         <div class="avatar">${ch.name.charAt(0).toUpperCase()}</div>
                         <div class="channel-item-info">
                             <div class="chat-item-name">${ch.name}</div>
-                            <div class="chat-item-preview">@${ch.handle} · ${ch.subscribers_count} подписчиков</div>
+                            <div class="chat-item-preview">
+                                @${ch.handle} · ${ch.subscribers_count} подписчиков
+                            </div>
                         </div>
                     </div>`).join('');
             }
@@ -434,10 +495,16 @@ const App = {
             const data = await API.users.search(query);
             list.innerHTML = data.users.map(u => `
                 <div class="user-item" onclick="App.startChatWith(${u.id})">
-                    <div class="avatar avatar-sm">${App.getAvatarHtml(u)}</div>
+                    <div class="avatar avatar-sm" style="position:relative;">
+                        ${App.getAvatarHtml(u)}
+                        ${u.is_online ? '<div class="online-dot online-dot-sm"></div>' : ''}
+                    </div>
                     <div>
                         <div class="user-item-name">${u.display_name}</div>
-                        <div class="user-item-username">${u.username ? '@' + u.username : u.phone}</div>
+                        <div class="user-item-username"
+                             style="color:${u.is_online ? 'var(--accent-green)' : ''}">
+                            ${u.is_online ? '● онлайн' : (u.username ? '@' + u.username : u.phone)}
+                        </div>
                     </div>
                 </div>`).join('');
         } catch (error) {
@@ -453,13 +520,25 @@ const App = {
             list.innerHTML = data.users.map(u => {
                 const isSelected = this.selectedGroupMembers.includes(u.id);
                 return `
-                    <div class="user-item" onclick="App.toggleGroupMember(${u.id}, '${u.display_name}')">
-                        <div class="avatar avatar-sm">${App.getAvatarHtml(u)}</div>
+                    <div class="user-item"
+                         onclick="App.toggleGroupMember(${u.id}, '${u.display_name}')">
+                        <div class="avatar avatar-sm" style="position:relative;">
+                            ${App.getAvatarHtml(u)}
+                            ${u.is_online
+                                ? '<div class="online-dot online-dot-sm"></div>' : ''}
+                        </div>
                         <div>
                             <div class="user-item-name">${u.display_name}</div>
-                            <div class="user-item-username">${u.username ? '@' + u.username : u.phone}</div>
+                            <div class="user-item-username"
+                                 style="color:${u.is_online ? 'var(--accent-green)' : ''}">
+                                ${u.is_online
+                                    ? '● онлайн'
+                                    : (u.username ? '@' + u.username : u.phone)}
+                            </div>
                         </div>
-                        ${isSelected ? '<i class="fas fa-check" style="color:var(--accent);margin-left:auto;"></i>' : ''}
+                        ${isSelected
+                            ? '<i class="fas fa-check" style="color:var(--accent);margin-left:auto;"></i>'
+                            : ''}
                     </div>`;
             }).join('');
         } catch (error) {
@@ -475,7 +554,8 @@ const App = {
         const searchVal = document.getElementById('group-member-search').value;
         this.searchUsersForGroup(searchVal);
         container.innerHTML = this.selectedGroupMembers.length > 0
-            ? `<span class="selected-member">${this.selectedGroupMembers.length} выбрано</span>` : '';
+            ? `<span class="selected-member">${this.selectedGroupMembers.length} выбрано</span>`
+            : '';
     },
 
     async createGroup() {
@@ -497,7 +577,10 @@ const App = {
         const name = document.getElementById('channel-create-name').value.trim();
         const handle = document.getElementById('channel-create-handle').value.trim();
         const desc = document.getElementById('channel-create-desc').value.trim();
-        if (!name || !handle) { Toast.show('Заполните обязательные поля', 'error'); return; }
+        if (!name || !handle) {
+            Toast.show('Заполните обязательные поля', 'error');
+            return;
+        }
         try {
             const data = await API.channels.create(name, handle, desc);
             UI.closeModal('modal-new-channel');
@@ -514,7 +597,9 @@ const App = {
         const username = document.getElementById('profile-username').value.trim();
         const bio = document.getElementById('profile-bio').value.trim();
         try {
-            const data = await API.users.updateProfile({ display_name: name, username: username || null, bio });
+            const data = await API.users.updateProfile({
+                display_name: name, username: username || null, bio
+            });
             Auth.currentUser = data.user;
             localStorage.setItem('novachat_user', JSON.stringify(data.user));
             this.updateUserInfo();
@@ -529,14 +614,17 @@ const App = {
         const file = input.files[0];
         if (!file) return;
         const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-        if (!allowed.includes(file.type)) { Toast.show('Формат не поддерживается', 'error'); input.value = ''; return; }
-
+        if (!allowed.includes(file.type)) {
+            Toast.show('Формат не поддерживается', 'error');
+            input.value = '';
+            return;
+        }
         const reader = new FileReader();
         reader.onload = (e) => {
-            document.getElementById('profile-avatar-preview').innerHTML = `<img src="${e.target.result}" alt="">`;
+            document.getElementById('profile-avatar-preview').innerHTML =
+                `<img src="${e.target.result}" alt="">`;
         };
         reader.readAsDataURL(file);
-
         Toast.show('Загрузка аватарки...', 'info');
         try {
             const data = await API.users.uploadAvatar(file);
@@ -544,8 +632,13 @@ const App = {
             localStorage.setItem('novachat_user', JSON.stringify(data.user));
             this.updateUserInfo();
             const backendBase = 'https://novachat-backend-55fr.onrender.com';
-            const src = data.avatar_url.startsWith('http') ? data.avatar_url : backendBase + data.avatar_url;
-            document.getElementById('profile-avatar-preview').innerHTML = `<img src="${src}" alt="" onerror="this.parentElement.innerHTML='${data.user.display_name.charAt(0)}'">`;
+            const src = data.avatar_url.startsWith('http')
+                ? data.avatar_url
+                : backendBase + data.avatar_url;
+            const fallback = data.user.display_name.charAt(0);
+            document.getElementById('profile-avatar-preview').innerHTML =
+                `<img src="${src}" alt=""
+                      onerror="this.parentElement.innerHTML='${fallback}'">`;
             Toast.show('Аватарка обновлена! ✓', 'success');
         } catch (error) {
             Toast.show(error.error || 'Ошибка загрузки', 'error');
@@ -561,13 +654,18 @@ const App = {
 
             const avatarEl = document.getElementById('view-profile-avatar');
             if (user.avatar_url) {
-                const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
-                avatarEl.innerHTML = `<img src="${src}" alt="" onerror="this.textContent='${user.display_name.charAt(0)}'">`;
+                const src = user.avatar_url.startsWith('http')
+                    ? user.avatar_url
+                    : backendBase + user.avatar_url;
+                avatarEl.innerHTML =
+                    `<img src="${src}" alt=""
+                          onerror="this.textContent='${user.display_name.charAt(0)}'">`;
             } else {
                 avatarEl.textContent = user.display_name.charAt(0).toUpperCase();
             }
 
             document.getElementById('view-profile-name').textContent = user.display_name;
+
             const usernameEl = document.getElementById('view-profile-username');
             if (user.username) {
                 usernameEl.textContent = '@' + user.username;
@@ -578,7 +676,7 @@ const App = {
 
             const statusEl = document.getElementById('view-profile-status');
             if (user.is_online) {
-                statusEl.textContent = 'онлайн';
+                statusEl.textContent = '● онлайн';
                 statusEl.className = 'profile-status-big online';
             } else {
                 statusEl.textContent = this.formatLastSeen(user.last_seen);
@@ -593,7 +691,8 @@ const App = {
                 bioSection.style.display = 'none';
             }
 
-            document.getElementById('view-profile-phone').textContent = user.phone || 'Скрыт';
+            document.getElementById('view-profile-phone').textContent =
+                user.phone || 'Скрыт';
 
             const msgBtn = document.getElementById('view-profile-message-btn');
             if (user.id === Auth.currentUser.id) {
@@ -605,6 +704,7 @@ const App = {
                     App.startChatWith(user.id);
                 };
             }
+
             UI.openModal('modal-user-profile');
         } catch (error) {
             Toast.show('Ошибка загрузки профиля', 'error');
@@ -615,31 +715,86 @@ const App = {
         if (!ChatUI.currentChat) return;
         const chat = ChatUI.currentChat;
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
+        const currentUserId = Auth.currentUser.id;
+        const isOwner = chat.created_by === currentUserId;
 
         const avatarEl = document.getElementById('group-info-avatar');
         if (chat.avatar_url) {
-            const src = chat.avatar_url.startsWith('http') ? chat.avatar_url : backendBase + chat.avatar_url;
+            const src = chat.avatar_url.startsWith('http')
+                ? chat.avatar_url
+                : backendBase + chat.avatar_url;
             avatarEl.innerHTML = `<img src="${src}" alt="">`;
         } else {
-            avatarEl.innerHTML = chat.name ? chat.name.charAt(0).toUpperCase() : '<i class="fas fa-users"></i>';
+            avatarEl.innerHTML = chat.name
+                ? chat.name.charAt(0).toUpperCase()
+                : '<i class="fas fa-users"></i>';
         }
 
         document.getElementById('group-info-name').textContent = chat.name || 'Группа';
-        document.getElementById('group-info-count').textContent = `${chat.members_count} участников`;
+
+        const members = chat.members_list || [];
+        const onlineCount = members.filter(m => m.is_online).length;
+
+        document.getElementById('group-info-count').innerHTML = `
+            <span>${members.length} участников</span>
+            ${onlineCount > 0
+                ? `<span style="color:var(--accent-green);margin-left:8px;">
+                       ● ${onlineCount} онлайн
+                   </span>`
+                : ''}`;
 
         const membersList = document.getElementById('group-info-members');
-        if (chat.members_list && chat.members_list.length > 0) {
-            membersList.innerHTML = chat.members_list.map(m => `
-                <div class="user-item" onclick="UI.closeModal('modal-group-info'); App.showUserProfile(${m.id})">
-                    <div class="avatar avatar-sm">${App.getAvatarHtml(m)}</div>
-                    <div>
-                        <div class="user-item-name">${m.display_name}</div>
-                        <div class="user-item-username">${m.username ? '@' + m.username : ''}</div>
-                    </div>
-                    ${m.is_online ? '<span style="width:8px;height:8px;border-radius:50%;background:var(--accent-green);flex-shrink:0;"></span>' : ''}
-                </div>`).join('');
+
+        if (members.length > 0) {
+            const sorted = [...members].sort((a, b) => {
+                if (a.is_online && !b.is_online) return -1;
+                if (!a.is_online && b.is_online) return 1;
+                return a.display_name.localeCompare(b.display_name);
+            });
+
+            membersList.innerHTML = sorted.map(m => {
+                const isMe = m.id === currentUserId;
+                const isCreator = m.id === chat.created_by;
+
+                const badge = isCreator
+                    ? '<span class="member-badge owner">👑 Создатель</span>'
+                    : isMe
+                        ? '<span class="member-badge me">Вы</span>'
+                        : '';
+
+                const onlineStatus = m.is_online
+                    ? '<span class="member-online-status">● онлайн</span>'
+                    : '<span class="member-offline-status">● оффлайн</span>';
+
+                const kickBtn = (isOwner && !isMe && !isCreator)
+                    ? `<button class="btn-kick"
+                               onclick="event.stopPropagation(); App.kickMember(${m.id}, '${m.display_name.replace(/'/g, "\\'")}')"
+                               title="Выгнать">
+                           <i class="fas fa-user-slash"></i>
+                       </button>`
+                    : '';
+
+                return `
+                    <div class="member-item" onclick="App.showUserProfile(${m.id})">
+                        <div class="avatar avatar-sm" style="position:relative;flex-shrink:0;">
+                            ${App.getAvatarHtml(m)}
+                            ${m.is_online
+                                ? '<div class="online-dot online-dot-sm"></div>'
+                                : ''}
+                        </div>
+                        <div class="member-info">
+                            <div class="member-name">
+                                ${m.display_name}
+                                ${badge}
+                            </div>
+                            ${onlineStatus}
+                        </div>
+                        ${kickBtn}
+                    </div>`;
+            }).join('');
         } else {
-            membersList.innerHTML = '<div class="empty-state"><p>Нет участников</p></div>';
+            membersList.innerHTML =
+                '<div class="empty-state"><p>Нет участников</p></div>';
         }
 
         const leaveBtn = document.getElementById('group-info-leave-btn');
@@ -658,6 +813,24 @@ const App = {
         };
 
         UI.openModal('modal-group-info');
+    },
+
+    async kickMember(userId, userName) {
+        if (!ChatUI.currentChat) return;
+        if (!confirm(`Выгнать ${userName} из группы?`)) return;
+
+        try {
+            await API.chats.kickMember(ChatUI.currentChat.id, userId);
+            Toast.show(`${userName} выгнан из группы`, 'success');
+
+            const chatData = await API.chats.getChat(ChatUI.currentChat.id);
+            ChatUI.currentChat = chatData.chat;
+            ChatUI.currentChat.members_list = chatData.members;
+
+            await App.showGroupInfo();
+        } catch (error) {
+            Toast.show(error.error || 'Ошибка', 'error');
+        }
     },
 
     formatLastSeen(dateStr) {
@@ -777,15 +950,11 @@ const ThemeManager = {
     apply(themeKey) {
         const theme = this.themes[themeKey];
         if (!theme) return;
-
         const root = document.documentElement;
         Object.entries(theme.vars).forEach(([key, value]) => {
             root.style.setProperty(key, value);
         });
-
         localStorage.setItem('novachat_theme', themeKey);
-
-        // Обновляем кнопки выбора темы
         document.querySelectorAll('.theme-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.theme === themeKey);
         });
@@ -801,8 +970,10 @@ const UI = {
         document.querySelectorAll('.tab').forEach(t => {
             t.classList.toggle('active', t.dataset.tab === tab);
         });
-        document.getElementById('chat-list').style.display = tab === 'chats' ? '' : 'none';
-        document.getElementById('channel-list').style.display = tab === 'channels' ? '' : 'none';
+        document.getElementById('chat-list').style.display =
+            tab === 'chats' ? '' : 'none';
+        document.getElementById('channel-list').style.display =
+            tab === 'channels' ? '' : 'none';
     },
     showNewChat() {
         this.openModal('modal-new-chat');
@@ -832,21 +1003,32 @@ const UI = {
         document.getElementById('profile-name').value = user.display_name || '';
         document.getElementById('profile-username').value = user.username || '';
         document.getElementById('profile-bio').value = user.bio || '';
-
         const avatarEl = document.getElementById('profile-avatar-preview');
         if (user.avatar_url) {
-            const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
-            avatarEl.innerHTML = `<img src="${src}" alt="" onerror="this.parentElement.innerHTML='<span>${user.display_name.charAt(0)}</span>'">`;
+            const src = user.avatar_url.startsWith('http')
+                ? user.avatar_url
+                : backendBase + user.avatar_url;
+            avatarEl.innerHTML =
+                `<img src="${src}" alt=""
+                      onerror="this.parentElement.innerHTML='<span>${user.display_name.charAt(0)}</span>'">`;
         } else {
-            avatarEl.innerHTML = `<span>${user.display_name.charAt(0).toUpperCase()}</span>`;
+            avatarEl.innerHTML =
+                `<span>${user.display_name.charAt(0).toUpperCase()}</span>`;
         }
-
-        // Обновляем активную тему
         const saved = localStorage.getItem('novachat_theme') || 'discord';
         document.querySelectorAll('.theme-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.theme === saved);
         });
-
+        
+        // Загружаем настройки уведомлений
+        const notifsEnabled = localStorage.getItem('novachat_notifications') !== 'false' 
+                             && Notifications.permission === 'granted';
+        const soundEnabled = localStorage.getItem('novachat_sound') !== 'false';
+        const notifsEl = document.getElementById('settings-notifications');
+        const soundEl = document.getElementById('settings-sound');
+        if (notifsEl) notifsEl.checked = notifsEnabled;
+        if (soundEl) soundEl.checked = soundEnabled;
+        
         this.openModal('modal-profile');
     },
     showDeleteAccount() {
@@ -855,7 +1037,10 @@ const UI = {
         const btn = document.getElementById('btn-confirm-delete');
         if (passwordInput) passwordInput.value = '';
         if (errorEl) errorEl.textContent = '';
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash"></i> Удалить навсегда'; }
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash"></i> Удалить навсегда';
+        }
         this.openModal('modal-delete-account');
     },
     showSearchUsers() { this.showNewChat(); },
@@ -879,6 +1064,16 @@ const UI = {
         document.getElementById('empty-chat').style.display = 'flex';
         ChatUI.currentChat = null;
         ChannelUI.currentChannel = null;
+    },
+    async toggleNotifications(checked) {
+        const success = await Notifications.toggle(checked);
+        if (!success) {
+            document.getElementById('settings-notifications').checked = false;
+        }
+    },
+    toggleSound(checked) {
+        Notifications.toggleSound(checked);
+        Toast.show(checked ? 'Звук включён' : 'Звук выключен', 'success');
     },
     openModal(id) {
         const modal = document.getElementById(id);
