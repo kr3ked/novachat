@@ -88,7 +88,6 @@ const Auth = {
     async logout() {
         try { await API.auth.logout(); } catch (e) {}
 
-
         this.currentUser = null;
         API.setToken(null);
         localStorage.removeItem('novachat_user');
@@ -96,25 +95,52 @@ const Auth = {
 
         if (App.socket) App.socket.disconnect();
 
-        
-
         document.getElementById('auth-screen').classList.add('active');
         document.getElementById('main-screen').classList.remove('active');
         UI.toggleMenu();
         Toast.show('Вы вышли из аккаунта');
-    },async logout() {
-    try { await API.auth.logout(); } catch (e) {}
+    },
 
-    
-    this.currentUser = null;
-    API.setToken(null);
-    localStorage.removeItem('novachat_user');
-    localStorage.removeItem('novachat_token');
-
-    if (App.socket) App.socket.disconnect();
-
-    document.getElementById('auth-screen').classList.add('active');
-    document.getElementById('main-screen').classList.remove('active');
-    UI.toggleMenu;
+    async deleteAccount() {
+        const passwordInput = document.getElementById('delete-password');
+        const errorEl = document.getElementById('delete-error');
+        const btn = document.getElementById('btn-confirm-delete');
+        
+        const password = passwordInput.value.trim();
+        
+        if (!password) {
+            errorEl.textContent = 'Введите пароль';
+            return;
+        }
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Удаление...';
+        errorEl.textContent = '';
+        
+        try {
+            await API.auth.deleteAccount(password);
+            
+            this.currentUser = null;
+            API.setToken(null);
+            localStorage.removeItem('novachat_user');
+            localStorage.removeItem('novachat_token');
+            
+            if (App.socket) App.socket.disconnect();
+            
+            UI.closeModal('modal-delete-account');
+            UI.closeModal('modal-profile');
+            
+            document.getElementById('main-screen').classList.remove('active');
+            document.getElementById('auth-screen').classList.add('active');
+            
+            Toast.show('Аккаунт удалён. Прощайте! 👋', 'success');
+            
+            passwordInput.value = '';
+            
+        } catch (error) {
+            errorEl.textContent = error.error || 'Ошибка удаления';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash"></i> Удалить навсегда';
+        }
     }
-}
+};
