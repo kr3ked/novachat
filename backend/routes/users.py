@@ -3,12 +3,13 @@ from models import db, User
 from functools import wraps
 from datetime import datetime
 import os
-import uuid
 from werkzeug.utils import secure_filename
+import telegram_storage
 
 users_bp = Blueprint('users', __name__)
 
 ALLOWED_AVATAR_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
 
 def allowed_avatar(filename):
     return '.' in filename and \
@@ -89,7 +90,7 @@ def upload_avatar(user):
         return jsonify({'error': 'Файл не выбран'}), 400
 
     if not allowed_avatar(file.filename):
-        return jsonify({'error': 'Формат не поддерживается (png, jpg, jpeg, gif, webp)'}), 400
+        return jsonify({'error': 'Формат не поддерживается'}), 400
 
     # Проверка размера (макс 5MB)
     file.seek(0, os.SEEK_END)
@@ -98,25 +99,18 @@ def upload_avatar(user):
     if size > 5 * 1024 * 1024:
         return jsonify({'error': 'Файл слишком большой (макс 5MB)'}), 400
 
-    ext = file.filename.rsplit('.', 1)[1].lower()
-    filename = f"avatar_{user.id}_{uuid.uuid4().hex}.{ext}"
+    file_data = file.read()
+    filename = secure_filename(file.filename)
 
-    upload_folder = current_app.config.get('UPLOAD_FOLDER', '/tmp/uploads')
-    os.makedirs(upload_folder, exist_ok=True)
+    # Загружаем в Telegram
+    if not telegram_storage.is_configured():
+        return jsonify({'error': 'Хранилище не настроено'}), 500
 
-    # Удаляем старую аватарку если она локальная
-    if user.avatar_url and user.avatar_url.startswith('/uploads/'):
-        old_path = os.path.join(upload_folder, os.path.basename(user.avatar_url))
-        if os.path.exists(old_path):
-            try:
-                os.remove(old_path)
-            except:
-                pass
+    file_id, error = telegram_storage.upload_photo(file_data, filename)
+    if error:
+        return jsonify({'error': 'Ошибка загрузки. Попробуйте позже.'}), 500
 
-    filepath = os.path.join(upload_folder, filename)
-    file.save(filepath)
-
-    avatar_url = f'/uploads/{filename}'
+    avatar_url = f'/api/messages/tg/{file_id}'
     user.avatar_url = avatar_url
     db.session.commit()
 

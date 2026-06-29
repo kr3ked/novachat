@@ -1,10 +1,11 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, redirect
 from models import db, Message, Chat, Channel, Comment, User, message_likes
 from routes.users import login_required
 from datetime import datetime
 import os
 import uuid
 from werkzeug.utils import secure_filename
+import telegram_storage
 
 messages_bp = Blueprint('messages', __name__)
 
@@ -13,7 +14,8 @@ ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'webm', 'ogg', 'mov', 'avi'}
 ALLOWED_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
 
 MAX_IMAGE_SIZE = 10 * 1024 * 1024
-MAX_VIDEO_SIZE = 100 * 1024 * 1024
+MAX_VIDEO_SIZE = 50 * 1024 * 1024  # Telegram бот лимит 50MB
+
 
 def get_file_type(filename):
     ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
@@ -22,6 +24,7 @@ def get_file_type(filename):
     if ext in ALLOWED_VIDEO_EXTENSIONS:
         return 'video'
     return None
+
 
 def allowed_file(filename):
     return get_file_type(filename) is not None
@@ -125,6 +128,7 @@ def send_message(user):
 @messages_bp.route('/upload', methods=['POST'])
 @login_required
 def upload_file(user):
+    """Загрузка файла в Telegram"""
     if 'file' not in request.files:
         return jsonify({'error': 'Файл не найден'}), 400
 
@@ -136,28 +140,51 @@ def upload_file(user):
     if not file_type:
         return jsonify({'error': 'Формат не поддерживается'}), 400
 
+    # Проверяем размер
     file.seek(0, os.SEEK_END)
     size = file.tell()
     file.seek(0)
 
     max_size = MAX_VIDEO_SIZE if file_type == 'video' else MAX_IMAGE_SIZE
     if size > max_size:
-        limit = '100MB' if file_type == 'video' else '10MB'
+        limit = '50MB' if file_type == 'video' else '10MB'
         return jsonify({'error': f'Файл слишком большой (макс {limit})'}), 400
 
-    ext = file.filename.rsplit('.', 1)[1].lower()
-    filename = f"{uuid.uuid4().hex}.{ext}"
     original_name = secure_filename(file.filename)
+    file_data = file.read()
 
-    upload_folder = current_app.config.get('UPLOAD_FOLDER', '/tmp/uploads')
-    os.makedirs(upload_folder, exist_ok=True)
-    file.save(os.path.join(upload_folder, filename))
+    # Загружаем в Telegram
+    if not telegram_storage.is_configured():
+        return jsonify({'error': 'Хранилище не настроено'}), 500
+
+    if file_type == 'image':
+        file_id, error = telegram_storage.upload_photo(file_data, original_name)
+    else:
+        file_id, error = telegram_storage.upload_video(file_data, original_name)
+
+    if error:
+        print(f'❌ Telegram upload error: {error}')
+        return jsonify({'error': 'Ошибка загрузки. Попробуйте позже.'}), 500
+
+    # Сохраняем file_id в URL формате /tg/<file_id>
+    # При запросе frontend получит редирект на актуальный URL Telegram
+    file_url = f'/api/messages/tg/{file_id}'
 
     return jsonify({
-        'file_url': f'/uploads/{filename}',
+        'file_url': file_url,
         'file_name': original_name,
-        'file_type': file_type
+        'file_type': file_type,
+        'tg_file_id': file_id
     }), 200
+
+
+@messages_bp.route('/tg/<file_id>', methods=['GET'])
+def get_telegram_file(file_id):
+    """Проксирует запрос к файлу в Telegram"""
+    url = telegram_storage.get_file_url(file_id)
+    if not url:
+        return jsonify({'error': 'Файл не найден'}), 404
+    return redirect(url, code=302)
 
 
 @messages_bp.route('/channel/<int:channel_id>/post', methods=['POST'])
