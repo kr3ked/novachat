@@ -75,13 +75,13 @@ const ChatUI = {
             const data = await API.messages.getChatMessages(this.currentChat.id, 1);
             const newMsgs = data.messages;
 
-            if (this.currentMessages.length <= 50) {
-                this.currentMessages = newMsgs;
+            // Сохраняем сообщения из старых страниц, обновляем только последнюю
+            const perPage = 50;
+            if (this.currentMessages.length > perPage) {
+                const olderMsgs = this.currentMessages.slice(0, this.currentMessages.length - perPage);
+                this.currentMessages = [...olderMsgs, ...newMsgs];
             } else {
-                this.currentMessages = [
-                    ...this.currentMessages.slice(0, this.currentMessages.length - newMsgs.length),
-                    ...newMsgs
-                ];
+                this.currentMessages = newMsgs;
             }
 
             this.rerenderAll();
@@ -113,8 +113,6 @@ const ChatUI = {
         }
 
         container.innerHTML = `<div id="scroll-trigger" style="height:1px;width:100%;"></div>` + html;
-
-        // ← ВАЖНО: привязываем события после перерендера
         this.bindMessageEvents(container);
     },
 
@@ -160,7 +158,6 @@ const ChatUI = {
         this.isLoadingMore = true;
         const area = document.getElementById('messages-area');
         const scrollHeightBefore = area.scrollHeight;
-
         this.showLoadingIndicator();
 
         try {
@@ -189,7 +186,6 @@ const ChatUI = {
             this.hideLoadingIndicator();
             console.error('Error loading more:', error);
         }
-
         this.isLoadingMore = false;
     },
 
@@ -198,11 +194,7 @@ const ChatUI = {
         if (container.querySelector('.loading-more')) return;
         const el = document.createElement('div');
         el.className = 'loading-more';
-        el.innerHTML = `
-            <div class="loading-more-inner">
-                <div class="typing-dots"><span></span><span></span><span></span></div>
-                <span>Загрузка...</span>
-            </div>`;
+        el.innerHTML = `<div class="loading-more-inner"><div class="typing-dots"><span></span><span></span><span></span></div><span>Загрузка...</span></div>`;
         const trigger = document.getElementById('scroll-trigger');
         if (trigger && trigger.nextSibling) {
             container.insertBefore(el, trigger.nextSibling);
@@ -238,12 +230,10 @@ const ChatUI = {
 
         const trigger = document.getElementById('scroll-trigger');
         const anchor = trigger ? trigger.nextSibling : container.firstChild;
-
         const fragment = document.createDocumentFragment();
         while (temp.firstChild) fragment.appendChild(temp.firstChild);
         container.insertBefore(fragment, anchor);
 
-        // ← ВАЖНО: привязываем события к новым элементам
         this.bindMessageEvents(container);
     },
 
@@ -293,33 +283,28 @@ const ChatUI = {
 
         container.innerHTML = `<div id="scroll-trigger" style="height:1px;width:100%;"></div>` + html;
         this.scrollToBottom();
-
-        // ← ВАЖНО: привязываем события
         this.bindMessageEvents(container);
     },
 
-    // ===== ПРИВЯЗКА СОБЫТИЙ К СООБЩЕНИЯМ =====
+    // ===== ПРИВЯЗКА СОБЫТИЙ =====
     bindMessageEvents(container) {
-        // Используем Set чтобы не вешать дублирующие обработчики
         container.querySelectorAll('.message[data-message-id]').forEach(el => {
-            // Пропускаем если уже привязаны события
             if (el.dataset.eventsBound === '1') return;
             el.dataset.eventsBound = '1';
 
             const msgId = parseInt(el.dataset.messageId);
             const isOutgoing = el.classList.contains('outgoing');
 
-            // ПКМ на компьютере
+            // ПКМ на десктопе
             el.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 App.showMsgContextMenu(e, msgId, isOutgoing);
             });
 
-            // Long press на мобильном (500мс)
+            // Long press на мобильном
             let longPressTimer = null;
-            let startX = 0;
-            let startY = 0;
+            let startX = 0, startY = 0;
 
             el.addEventListener('touchstart', (e) => {
                 startX = e.touches[0].clientX;
@@ -331,21 +316,14 @@ const ChatUI = {
             }, { passive: true });
 
             el.addEventListener('touchend', () => {
-                if (longPressTimer) {
-                    clearTimeout(longPressTimer);
-                    longPressTimer = null;
-                }
+                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
             });
 
             el.addEventListener('touchmove', (e) => {
                 const dx = Math.abs(e.touches[0].clientX - startX);
                 const dy = Math.abs(e.touches[0].clientY - startY);
-                // Отменяем если сдвинули больше 10px
                 if (dx > 10 || dy > 10) {
-                    if (longPressTimer) {
-                        clearTimeout(longPressTimer);
-                        longPressTimer = null;
-                    }
+                    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
                 }
             }, { passive: true });
         });
@@ -370,16 +348,15 @@ const ChatUI = {
         if (msg.reply_to) {
             replyHtml = `
                 <div class="message-reply">
-                    <div class="message-reply-name">${msg.reply_to.sender.display_name}</div>
-                    <div class="message-reply-text">${this.escapeHtml(msg.reply_to.text)}</div>
+                    <div class="message-reply-name">${msg.reply_to.sender ? msg.reply_to.sender.display_name : ''}</div>
+                    <div class="message-reply-text">${this.escapeHtml(msg.reply_to.text || '📎 Медиа')}</div>
                 </div>`;
         }
 
         let forwardHtml = '';
         if (msg.forwarded_from) {
             const fwdName = msg.forwarded_from.original_sender
-                ? msg.forwarded_from.original_sender.display_name
-                : 'Неизвестный';
+                ? msg.forwarded_from.original_sender.display_name : 'Неизвестный';
             forwardHtml = `
                 <div class="message-forwarded">
                     <i class="fas fa-share"></i> Переслано от ${fwdName}
@@ -389,8 +366,7 @@ const ChatUI = {
         let mediaHtml = '';
         if (msg.file_url) {
             const src = msg.file_url.startsWith('http') ? msg.file_url : backendBase + msg.file_url;
-            const isVideo = msg.message_type === 'video' ||
-                /\.(mp4|webm|ogg|mov|avi)$/i.test(msg.file_url);
+            const isVideo = msg.message_type === 'video' || /\.(mp4|webm|ogg|mov|avi)$/i.test(msg.file_url);
             if (isVideo) {
                 mediaHtml = `
                     <div class="message-video-wrapper">
@@ -403,8 +379,7 @@ const ChatUI = {
             } else {
                 mediaHtml = `
                     <div class="message-image-wrapper">
-                        <img src="${src}" class="message-image"
-                             alt="${msg.file_name || 'Фото'}"
+                        <img src="${src}" class="message-image" alt="${msg.file_name || 'Фото'}"
                              onclick="window.open('${src}', '_blank')"
                              onerror="this.parentElement.innerHTML='<span style=\\'color:var(--text-secondary);font-size:12px;\\'>Фото недоступно</span>'" />
                     </div>`;
@@ -467,9 +442,7 @@ const ChatUI = {
                 });
             } else {
                 await API.messages.send(
-                    this.currentChat.id,
-                    text || null,
-                    replyToId,
+                    this.currentChat.id, text || null, replyToId,
                     imageData ? imageData.file_url : null,
                     imageData ? imageData.file_name : null,
                     imageData ? imageData.file_type : null
@@ -487,10 +460,7 @@ const ChatUI = {
             this.sendMessage();
         }
         if (App.socket && this.currentChat) {
-            App.socket.emit('typing', {
-                token: API.token,
-                chat_id: this.currentChat.id
-            });
+            App.socket.emit('typing', { token: API.token, chat_id: this.currentChat.id });
         }
     },
 
@@ -499,9 +469,27 @@ const ChatUI = {
         el.style.height = Math.min(el.scrollHeight, 150) + 'px';
     },
 
+    // ИСПРАВЛЕНО: reply теперь ищет в currentMessages и в DOM
     setReply(messageId) {
-        const msg = this.currentMessages.find(m => m.id === messageId);
+        // Ищем в массиве текущих сообщений
+        let msg = this.currentMessages.find(m => m.id === messageId);
+
+        if (!msg) {
+            // Если нет в массиве — читаем из DOM
+            const el = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (el) {
+                const textEl = el.querySelector('.message-text');
+                const senderEl = el.querySelector('.message-sender');
+                msg = {
+                    id: messageId,
+                    text: textEl ? textEl.textContent : '📎 Медиа',
+                    sender: { display_name: senderEl ? senderEl.textContent : '' }
+                };
+            }
+        }
+
         if (!msg) return;
+
         this.replyTo = msg;
         document.getElementById('reply-preview').style.display = 'flex';
         document.getElementById('reply-name').textContent = msg.sender ? msg.sender.display_name : '';
@@ -554,11 +542,7 @@ const ChatUI = {
         Toast.show('Загрузка...', 'info');
         try {
             const data = await API.messages.uploadFile(file);
-            this.pendingImage = {
-                file_url: data.file_url,
-                file_name: data.file_name,
-                file_type: data.file_type
-            };
+            this.pendingImage = { file_url: data.file_url, file_name: data.file_name, file_type: data.file_type };
             Toast.show(`${isVideo ? 'Видео' : 'Фото'} готово ✓`, 'success');
         } catch (error) {
             Toast.show(error.error || 'Ошибка загрузки', 'error');
@@ -718,10 +702,7 @@ const ChatUI = {
         if (empty) empty.remove();
 
         container.insertAdjacentHTML('beforeend', this.renderMessage(msg, isOutgoing));
-
-        // Привязываем события к новому сообщению
         this.bindMessageEvents(container);
-
         this.scrollToBottom();
     },
 

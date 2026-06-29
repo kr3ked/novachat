@@ -1,12 +1,12 @@
 const App = {
     socket: null,
     selectedGroupMembers: [],
-    _contextMenuOpen: false,
 
     init() {
         Auth.init();
+        // Загружаем тему
+        ThemeManager.init();
 
-        // Закрываем все контекстные меню при клике
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.reactions-picker') && !e.target.closest('.message-action-btn')) {
                 document.getElementById('reactions-picker').style.display = 'none';
@@ -17,7 +17,6 @@ const App = {
             }
         });
 
-        // Закрываем при нажатии Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.hideContextMenu();
@@ -58,16 +57,20 @@ const App = {
         if (!user) return;
         document.getElementById('menu-username').textContent = user.display_name;
         document.getElementById('menu-phone').textContent = user.phone;
-        document.getElementById('menu-avatar').innerHTML = this.getAvatarHtml(user);
+        document.getElementById('menu-avatar').innerHTML = this.getAvatarHtml(user, true);
     },
 
-    getAvatarHtml(user) {
+    // ИСПРАВЛЕНО: добавлен onerror для аватарок
+    getAvatarHtml(user, large = false) {
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
         if (user.avatar_url) {
             const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
-            return `<img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            const fallback = user.display_name ? user.display_name.charAt(0).toUpperCase() : '?';
+            return `<img src="${src}" alt="" 
+                style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
+                onerror="this.parentElement.innerHTML='${fallback}'">`;
         }
-        return user.display_name.charAt(0).toUpperCase();
+        return user.display_name ? user.display_name.charAt(0).toUpperCase() : '?';
     },
 
     getAvatarContent(user) { return this.getAvatarHtml(user); },
@@ -135,7 +138,8 @@ const App = {
             let avatarContent;
             if (chat.avatar_url) {
                 const src = chat.avatar_url.startsWith('http') ? chat.avatar_url : backendBase + chat.avatar_url;
-                avatarContent = `<img src="${src}" alt="">`;
+                const fallback = (chat.name || 'Ч').charAt(0).toUpperCase();
+                avatarContent = `<img src="${src}" alt="" onerror="this.parentElement.innerHTML='${fallback}'">`;
             } else {
                 avatarContent = chat.name
                     ? chat.name.charAt(0).toUpperCase()
@@ -163,19 +167,15 @@ const App = {
     showChatContextMenu(event, chatId, chatType, chatName) {
         event.preventDefault();
         event.stopPropagation();
-
-        // Закрываем меню сообщения если открыто
         this.hideMsgContextMenu();
 
         const menu = document.getElementById('chat-context-menu');
         const isGroup = chatType === 'group';
-
         const deleteBtn = document.getElementById('ctx-delete-chat');
-        if (isGroup) {
-            deleteBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Покинуть группу';
-        } else {
-            deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Удалить чат';
-        }
+
+        deleteBtn.innerHTML = isGroup
+            ? '<i class="fas fa-sign-out-alt"></i> Покинуть группу'
+            : '<i class="fas fa-trash"></i> Удалить чат';
 
         deleteBtn.onclick = (e) => {
             e.stopPropagation();
@@ -191,9 +191,7 @@ const App = {
         if (menu) {
             menu.classList.remove('visible');
             setTimeout(() => {
-                if (!menu.classList.contains('visible')) {
-                    menu.style.display = 'none';
-                }
+                if (!menu.classList.contains('visible')) menu.style.display = 'none';
             }, 150);
         }
     },
@@ -204,17 +202,13 @@ const App = {
             event.preventDefault();
             event.stopPropagation();
         }
-
-        // Закрываем меню чата если открыто
         this.hideContextMenu();
 
         const menu = document.getElementById('msg-context-menu');
 
-        // Показываем/скрываем кнопки в зависимости от того чьё сообщение
         document.getElementById('ctx-msg-edit').style.display = isOutgoing ? 'flex' : 'none';
         document.getElementById('ctx-msg-delete').style.display = isOutgoing ? 'flex' : 'none';
 
-        // Привязываем действия
         document.getElementById('ctx-msg-reply').onclick = (e) => {
             e.stopPropagation();
             this.hideMsgContextMenu();
@@ -224,6 +218,25 @@ const App = {
             e.stopPropagation();
             this.hideMsgContextMenu();
             ChatUI.showForward(messageId);
+        };
+        document.getElementById('ctx-msg-react').onclick = (e) => {
+            e.stopPropagation();
+            this.hideMsgContextMenu();
+            const msgEl = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (msgEl) {
+                const rect = msgEl.getBoundingClientRect();
+                const picker = document.getElementById('reactions-picker');
+                picker.style.display = 'flex';
+                picker.style.top = Math.max(8, rect.top - 56) + 'px';
+                picker.style.left = Math.max(8, rect.left) + 'px';
+                ChatUI.activeReactionMessageId = messageId;
+                setTimeout(() => {
+                    document.addEventListener('click', function handler() {
+                        picker.style.display = 'none';
+                        document.removeEventListener('click', handler);
+                    });
+                }, 10);
+            }
         };
         document.getElementById('ctx-msg-edit').onclick = (e) => {
             e.stopPropagation();
@@ -235,36 +248,16 @@ const App = {
             this.hideMsgContextMenu();
             ChatUI.deleteMessage(messageId);
         };
-        document.getElementById('ctx-msg-react').onclick = (e) => {
-            e.stopPropagation();
-            this.hideMsgContextMenu();
-            // Показываем пикер реакций рядом с сообщением
-            const msgEl = document.querySelector(`[data-message-id="${messageId}"]`);
-            if (msgEl) {
-                const rect = msgEl.getBoundingClientRect();
-                const picker = document.getElementById('reactions-picker');
-                picker.style.display = 'flex';
-                picker.style.top = (rect.top - 56) + 'px';
-                picker.style.left = Math.max(8, rect.left) + 'px';
-                ChatUI.activeReactionMessageId = messageId;
-                setTimeout(() => {
-                    document.addEventListener('click', function handler() {
-                        picker.style.display = 'none';
-                        document.removeEventListener('click', handler);
-                    });
-                }, 10);
-            }
-        };
 
         if (event && event.clientX) {
             this._positionMenu(menu, event.clientX, event.clientY);
         } else {
-            // Для long press на мобильном — по центру экрана снизу
+            // Мобильный — по центру снизу
+            menu.style.display = 'block';
             menu.style.left = '50%';
-            menu.style.transform = 'translateX(-50%)';
             menu.style.top = 'auto';
             menu.style.bottom = '80px';
-            menu.style.display = 'block';
+            menu.style.transform = 'translateX(-50%)';
             requestAnimationFrame(() => menu.classList.add('visible'));
         }
     },
@@ -276,14 +269,11 @@ const App = {
             menu.style.transform = '';
             menu.style.bottom = '';
             setTimeout(() => {
-                if (!menu.classList.contains('visible')) {
-                    menu.style.display = 'none';
-                }
+                if (!menu.classList.contains('visible')) menu.style.display = 'none';
             }, 150);
         }
     },
 
-    // Позиционирование меню с учётом границ экрана
     _positionMenu(menu, x, y) {
         menu.style.display = 'block';
         menu.style.left = '0px';
@@ -293,13 +283,12 @@ const App = {
 
         requestAnimationFrame(() => {
             const menuW = menu.offsetWidth || 200;
-            const menuH = menu.offsetHeight || 150;
+            const menuH = menu.offsetHeight || 160;
             const winW = window.innerWidth;
             const winH = window.innerHeight;
 
             let left = x;
             let top = y;
-
             if (left + menuW > winW) left = winW - menuW - 8;
             if (top + menuH > winH) top = winH - menuH - 8;
             if (left < 8) left = 8;
@@ -327,7 +316,8 @@ const App = {
             await this.loadChats();
             Toast.show(isGroup ? 'Вы покинули группу' : 'Чат удалён', 'success');
         } catch (error) {
-            Toast.show(error.error || 'Ошибка', 'error');
+            console.error('Delete chat error:', error);
+            Toast.show(error.error || 'Ошибка удаления', 'error');
         }
     },
 
@@ -353,11 +343,9 @@ const App = {
         }
         list.innerHTML = channels.map(ch => {
             const avatarContent = ch.avatar_url
-                ? `<img src="${ch.avatar_url}" alt="">`
+                ? `<img src="${ch.avatar_url}" alt="" onerror="this.parentElement.innerHTML='${ch.name.charAt(0).toUpperCase()}'">` 
                 : ch.name.charAt(0).toUpperCase();
-            const preview = ch.last_post
-                ? (ch.last_post.text || '📎 Медиа').substring(0, 40)
-                : 'Нет постов';
+            const preview = ch.last_post ? (ch.last_post.text || '📎 Медиа').substring(0, 40) : 'Нет постов';
             const time = ch.last_post ? ChatUI.formatTime(ch.last_post.created_at) : '';
             return `
                 <div class="channel-item" onclick="ChannelUI.openChannel(${ch.id})">
@@ -526,9 +514,7 @@ const App = {
         const username = document.getElementById('profile-username').value.trim();
         const bio = document.getElementById('profile-bio').value.trim();
         try {
-            const data = await API.users.updateProfile({
-                display_name: name, username: username || null, bio
-            });
+            const data = await API.users.updateProfile({ display_name: name, username: username || null, bio });
             Auth.currentUser = data.user;
             localStorage.setItem('novachat_user', JSON.stringify(data.user));
             this.updateUserInfo();
@@ -543,16 +529,14 @@ const App = {
         const file = input.files[0];
         if (!file) return;
         const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-        if (!allowed.includes(file.type)) {
-            Toast.show('Формат не поддерживается', 'error');
-            input.value = '';
-            return;
-        }
+        if (!allowed.includes(file.type)) { Toast.show('Формат не поддерживается', 'error'); input.value = ''; return; }
+
         const reader = new FileReader();
         reader.onload = (e) => {
             document.getElementById('profile-avatar-preview').innerHTML = `<img src="${e.target.result}" alt="">`;
         };
         reader.readAsDataURL(file);
+
         Toast.show('Загрузка аватарки...', 'info');
         try {
             const data = await API.users.uploadAvatar(file);
@@ -561,7 +545,7 @@ const App = {
             this.updateUserInfo();
             const backendBase = 'https://novachat-backend-55fr.onrender.com';
             const src = data.avatar_url.startsWith('http') ? data.avatar_url : backendBase + data.avatar_url;
-            document.getElementById('profile-avatar-preview').innerHTML = `<img src="${src}" alt="">`;
+            document.getElementById('profile-avatar-preview').innerHTML = `<img src="${src}" alt="" onerror="this.parentElement.innerHTML='${data.user.display_name.charAt(0)}'">`;
             Toast.show('Аватарка обновлена! ✓', 'success');
         } catch (error) {
             Toast.show(error.error || 'Ошибка загрузки', 'error');
@@ -574,13 +558,15 @@ const App = {
             const data = await API.users.getUser(userId);
             const user = data.user;
             const backendBase = 'https://novachat-backend-55fr.onrender.com';
+
             const avatarEl = document.getElementById('view-profile-avatar');
             if (user.avatar_url) {
                 const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
-                avatarEl.innerHTML = `<img src="${src}" alt="">`;
+                avatarEl.innerHTML = `<img src="${src}" alt="" onerror="this.textContent='${user.display_name.charAt(0)}'">`;
             } else {
                 avatarEl.textContent = user.display_name.charAt(0).toUpperCase();
             }
+
             document.getElementById('view-profile-name').textContent = user.display_name;
             const usernameEl = document.getElementById('view-profile-username');
             if (user.username) {
@@ -589,6 +575,7 @@ const App = {
             } else {
                 usernameEl.style.display = 'none';
             }
+
             const statusEl = document.getElementById('view-profile-status');
             if (user.is_online) {
                 statusEl.textContent = 'онлайн';
@@ -597,6 +584,7 @@ const App = {
                 statusEl.textContent = this.formatLastSeen(user.last_seen);
                 statusEl.className = 'profile-status-big';
             }
+
             const bioSection = document.getElementById('view-profile-bio-section');
             if (user.bio && user.bio.trim()) {
                 document.getElementById('view-profile-bio').textContent = user.bio;
@@ -604,7 +592,9 @@ const App = {
             } else {
                 bioSection.style.display = 'none';
             }
+
             document.getElementById('view-profile-phone').textContent = user.phone || 'Скрыт';
+
             const msgBtn = document.getElementById('view-profile-message-btn');
             if (user.id === Auth.currentUser.id) {
                 msgBtn.style.display = 'none';
@@ -625,6 +615,7 @@ const App = {
         if (!ChatUI.currentChat) return;
         const chat = ChatUI.currentChat;
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
+
         const avatarEl = document.getElementById('group-info-avatar');
         if (chat.avatar_url) {
             const src = chat.avatar_url.startsWith('http') ? chat.avatar_url : backendBase + chat.avatar_url;
@@ -632,8 +623,10 @@ const App = {
         } else {
             avatarEl.innerHTML = chat.name ? chat.name.charAt(0).toUpperCase() : '<i class="fas fa-users"></i>';
         }
+
         document.getElementById('group-info-name').textContent = chat.name || 'Группа';
         document.getElementById('group-info-count').textContent = `${chat.members_count} участников`;
+
         const membersList = document.getElementById('group-info-members');
         if (chat.members_list && chat.members_list.length > 0) {
             membersList.innerHTML = chat.members_list.map(m => `
@@ -648,6 +641,7 @@ const App = {
         } else {
             membersList.innerHTML = '<div class="empty-state"><p>Нет участников</p></div>';
         }
+
         const leaveBtn = document.getElementById('group-info-leave-btn');
         leaveBtn.style.display = 'block';
         leaveBtn.onclick = async () => {
@@ -662,6 +656,7 @@ const App = {
                 Toast.show('Ошибка', 'error');
             }
         };
+
         UI.openModal('modal-group-info');
     },
 
@@ -691,6 +686,109 @@ const App = {
         if (mod10 === 1) return one;
         if (mod10 >= 2 && mod10 <= 4) return few;
         return many;
+    }
+};
+
+// ===== МЕНЕДЖЕР ТЕМ =====
+const ThemeManager = {
+    themes: {
+        discord: {
+            name: '🎮 Discord',
+            vars: {
+                '--bg-primary': '#1e2030',
+                '--bg-secondary': '#181a26',
+                '--bg-chat': '#222538',
+                '--bg-message-out': '#3d4567',
+                '--bg-message-in': '#2a2d42',
+                '--bg-hover': '#2a2d42',
+                '--bg-active': '#3d4567',
+                '--bg-input': '#252839',
+                '--bg-modal': '#1f2235',
+                '--text-primary': '#e4e7f1',
+                '--text-secondary': '#8a90a8',
+                '--text-time': '#6a6f85',
+                '--accent': '#5865f2',
+                '--accent-hover': '#4752c4',
+                '--accent-glow': '#818cf8',
+                '--accent-deep': '#3b41a3',
+                '--accent-green': '#57f287',
+                '--accent-red': '#ed4245',
+                '--accent-orange': '#fee75c',
+                '--border': '#2a2d42',
+            }
+        },
+        telegram: {
+            name: '✈️ Telegram',
+            vars: {
+                '--bg-primary': '#f0f4f8',
+                '--bg-secondary': '#ffffff',
+                '--bg-chat': '#e8eef4',
+                '--bg-message-out': '#effdde',
+                '--bg-message-in': '#ffffff',
+                '--bg-hover': '#e8eef4',
+                '--bg-active': '#d5e6f3',
+                '--bg-input': '#ffffff',
+                '--bg-modal': '#ffffff',
+                '--text-primary': '#1a1a2e',
+                '--text-secondary': '#6b7fa3',
+                '--text-time': '#9aabb8',
+                '--accent': '#0088cc',
+                '--accent-hover': '#006fa8',
+                '--accent-glow': '#33aaff',
+                '--accent-deep': '#005fa0',
+                '--accent-green': '#4caf50',
+                '--accent-red': '#e53935',
+                '--accent-orange': '#ff9800',
+                '--border': '#dce8f0',
+            }
+        },
+        darkred: {
+            name: '🔴 Тёмно-красный',
+            vars: {
+                '--bg-primary': '#120808',
+                '--bg-secondary': '#1a0a0a',
+                '--bg-chat': '#160d0d',
+                '--bg-message-out': '#4a1515',
+                '--bg-message-in': '#1f0f0f',
+                '--bg-hover': '#1f0f0f',
+                '--bg-active': '#3a1010',
+                '--bg-input': '#1a0a0a',
+                '--bg-modal': '#1f0a0a',
+                '--text-primary': '#f0d8d8',
+                '--text-secondary': '#a07070',
+                '--text-time': '#7a5050',
+                '--accent': '#c0392b',
+                '--accent-hover': '#a93226',
+                '--accent-glow': '#e74c3c',
+                '--accent-deep': '#8b1a1a',
+                '--accent-green': '#27ae60',
+                '--accent-red': '#ff5252',
+                '--accent-orange': '#e67e22',
+                '--border': '#2a1010',
+            }
+        }
+    },
+
+    init() {
+        const saved = localStorage.getItem('novachat_theme') || 'discord';
+        this.apply(saved);
+    },
+
+    apply(themeKey) {
+        const theme = this.themes[themeKey];
+        if (!theme) return;
+
+        const root = document.documentElement;
+        Object.entries(theme.vars).forEach(([key, value]) => {
+            root.style.setProperty(key, value);
+        });
+
+        localStorage.setItem('novachat_theme', themeKey);
+
+        // Обновляем кнопки выбора темы
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === themeKey);
+        });
     }
 };
 
@@ -734,13 +832,21 @@ const UI = {
         document.getElementById('profile-name').value = user.display_name || '';
         document.getElementById('profile-username').value = user.username || '';
         document.getElementById('profile-bio').value = user.bio || '';
+
         const avatarEl = document.getElementById('profile-avatar-preview');
         if (user.avatar_url) {
             const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
-            avatarEl.innerHTML = `<img src="${src}" alt="">`;
+            avatarEl.innerHTML = `<img src="${src}" alt="" onerror="this.parentElement.innerHTML='<span>${user.display_name.charAt(0)}</span>'">`;
         } else {
             avatarEl.innerHTML = `<span>${user.display_name.charAt(0).toUpperCase()}</span>`;
         }
+
+        // Обновляем активную тему
+        const saved = localStorage.getItem('novachat_theme') || 'discord';
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === saved);
+        });
+
         this.openModal('modal-profile');
     },
     showDeleteAccount() {
