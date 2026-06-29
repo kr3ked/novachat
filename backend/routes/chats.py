@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models import db, Chat, User, Message, Comment, message_likes, chat_members
 from routes.users import login_required
+from sqlalchemy import text
 
 chats_bp = Blueprint('chats', __name__)
 
@@ -169,7 +170,6 @@ def leave_chat(user, chat_id):
 @chats_bp.route('/<int:chat_id>/delete', methods=['DELETE'])
 @login_required
 def delete_chat(user, chat_id):
-    """Удалить чат (только для участника)"""
     chat = Chat.query.get(chat_id)
     if not chat:
         return jsonify({'error': 'Чат не найден'}), 404
@@ -177,27 +177,36 @@ def delete_chat(user, chat_id):
         return jsonify({'error': 'Вы не участник этого чата'}), 403
 
     try:
-        # Для приватного чата — удаляем полностью
         if chat.chat_type == 'private':
-            # Удаляем все реакции на сообщения чата
-            for msg in Message.query.filter_by(chat_id=chat_id).all():
+            # Получаем все сообщения чата
+            messages = Message.query.filter_by(chat_id=chat_id).all()
+
+            for msg in messages:
+                # Удаляем реакции на сообщение
                 db.session.execute(
                     message_likes.delete().where(
                         message_likes.c.message_id == msg.id
                     )
                 )
-                # Удаляем комментарии
+                # Удаляем комментарии к сообщению
                 Comment.query.filter_by(message_id=msg.id).delete()
 
-            # Удаляем сообщения
-            Message.query.filter_by(chat_id=chat_id).delete()
+            db.session.flush()
 
-            # Удаляем участников
+            # Удаляем сами сообщения по одному
+            for msg in messages:
+                db.session.delete(msg)
+
+            db.session.flush()
+
+            # Удаляем участников чата
             db.session.execute(
                 chat_members.delete().where(
                     chat_members.c.chat_id == chat_id
                 )
             )
+
+            db.session.flush()
 
             # Удаляем чат
             db.session.delete(chat)
@@ -205,8 +214,8 @@ def delete_chat(user, chat_id):
 
             return jsonify({'message': 'Чат удалён', 'deleted': True}), 200
 
-        # Для группового чата — просто выходим
         else:
+            # Для группы — просто выходим
             chat.members.remove(user)
             db.session.commit()
             return jsonify({'message': 'Вы покинули группу', 'deleted': False}), 200
@@ -214,4 +223,6 @@ def delete_chat(user, chat_id):
     except Exception as e:
         db.session.rollback()
         print(f'Ошибка удаления чата: {e}')
-        return jsonify({'error': 'Ошибка удаления'}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Ошибка удаления: {str(e)}'}), 500
