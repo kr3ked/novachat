@@ -184,7 +184,6 @@
                         <div class="typing-dots"><span></span><span></span><span></span></div>
                     </div>
 
-                    <!-- Превью файла для чата -->
                     <div id="image-preview" style="display:none; align-items:center; gap:10px; padding:8px 12px; background:var(--bg-secondary); border-top:1px solid var(--border);">
                         <img id="image-preview-img" src="" style="display:none; max-height:72px; max-width:120px; border-radius:8px; object-fit:cover;" />
                         <div id="image-preview-video" style="display:none; align-items:center; gap:10px;">
@@ -194,9 +193,7 @@
                             <span class="video-preview-name" style="font-size:13px;color:var(--text-secondary);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
                         </div>
                         <span style="font-size:13px; color:var(--text-secondary); flex:1;">Готово к отправке</span>
-                        <button class="btn-icon" onclick="ChatUI.cancelImage()" type="button">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <button class="btn-icon" onclick="ChatUI.cancelImage()" type="button"><i class="fas fa-times"></i></button>
                     </div>
 
                     <div class="reply-preview" id="reply-preview" style="display:none;">
@@ -211,7 +208,7 @@
                         <input type="file" id="image-input"
                                accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime"
                                style="display:none" onchange="ChatUI.handleImageSelect(this)">
-                        <button class="btn-icon" onclick="ChatUI.openImagePicker()" title="Прикрепить фото или видео">
+                        <button class="btn-icon" onclick="ChatUI.openImagePicker()" title="Прикрепить">
                             <i class="fas fa-paperclip"></i>
                         </button>
                         <div class="message-input-wrapper">
@@ -229,7 +226,6 @@
                 <div class="channel-view" id="channel-view" style="display:none;">
                     <div class="chat-header">
                         <button class="btn-icon btn-back" onclick="UI.closeChat()"><i class="fas fa-arrow-left"></i></button>
-                        <!-- Клик по шапке канала — открывает профиль канала -->
                         <div class="chat-header-info" onclick="ChannelUI.showChannelInfo()" style="cursor:pointer;">
                             <div class="avatar"><i class="fas fa-bullhorn"></i></div>
                             <div class="chat-header-text">
@@ -239,7 +235,13 @@
                         </div>
                         <div class="chat-header-actions">
                             <button class="btn-icon" id="btn-subscribe" onclick="ChannelUI.toggleSubscribe()"><i class="fas fa-bell"></i></button>
-                            <button class="btn-icon" onclick="ChannelUI.showChannelInfo()" title="Инфо о канале"><i class="fas fa-info-circle"></i></button>
+                            <!-- Кнопка редактирования — только для владельца -->
+                            <button class="btn-icon" id="btn-edit-channel" onclick="ChannelUI.showEditChannel()" title="Редактировать канал" style="display:none;">
+                                <i class="fas fa-pen"></i>
+                            </button>
+                            <button class="btn-icon" onclick="ChannelUI.showChannelInfo()" title="Инфо о канале">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
                         </div>
                     </div>
 
@@ -247,13 +249,7 @@
                         <div class="messages-container" id="channel-posts-container"></div>
                     </div>
 
-                    <!-- Инпут для канала (только для владельца) -->
-                    <div class="message-input-area" id="channel-input-area" style="display:none;">
-                        <input type="file" id="channel-file-input"
-                               accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime"
-                               style="display:none" onchange="ChannelUI.handleChannelFileSelect(this)">
-
-                        <!-- Превью файла для канала -->
+                    <div class="message-input-area" id="channel-input-area" style="display:none; flex-direction:column;">
                         <div id="channel-file-preview" style="display:none; align-items:center; gap:10px; padding:8px 12px; background:var(--bg-secondary); border-top:1px solid var(--border); width:100%;">
                             <img id="channel-preview-img" src="" style="display:none; max-height:60px; max-width:100px; border-radius:8px; object-fit:cover;" />
                             <div id="channel-preview-video" style="display:none; align-items:center; gap:8px;">
@@ -263,23 +259,32 @@
                                 <span class="video-preview-name" style="font-size:12px;color:var(--text-secondary);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
                             </div>
                             <span style="font-size:12px;color:var(--text-secondary);flex:1;">Готово к публикации</span>
-                            <button class="btn-icon" onclick="ChannelUI.cancelChannelFile()" type="button">
-                                <i class="fas fa-times"></i>
+                            <button class="btn-icon" onclick="ChannelUI.cancelChannelFile()" type="button"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div style="display:flex; align-items:flex-end; gap:4px; padding:8px;">
+                            <input type="file" id="channel-file-input"
+                                   accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime"
+                                   style="display:none" onchange="ChannelUI.handleChannelFileSelect(this)">
+                            <button class="btn-icon" onclick="ChannelUI.openChannelFilePicker()" title="Прикрепить">
+                                <i class="fas fa-paperclip"></i>
+                            </button>
+                            <div class="message-input-wrapper">
+                                <textarea id="channel-post-input" placeholder="Новый пост..." rows="1" oninput="ChatUI.autoResize(this)"></textarea>
+                            </div>
+                            <button class="btn-icon btn-send" onclick="ChannelUI.createPost()">
+                                <i class="fas fa-paper-plane"></i>
                             </button>
                         </div>
-
-                        <button class="btn-icon" onclick="ChannelUI.openChannelFilePicker()" title="Прикрепить фото или видео">
-                            <i class="fas fa-paperclip"></i>
-                        </button>
-                        <div class="message-input-wrapper">
-                            <textarea id="channel-post-input" placeholder="Новый пост..." rows="1" oninput="ChatUI.autoResize(this)"></textarea>
-                        </div>
-                        <button class="btn-icon btn-send" onclick="ChannelUI.createPost()">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- ===== КОНТЕКСТНОЕ МЕНЮ ЧАТА ===== -->
+    <div class="context-menu" id="chat-context-menu" style="display:none;">
+        <div class="context-menu-item danger" id="ctx-delete-chat">
+            <i class="fas fa-trash"></i> Удалить чат
         </div>
     </div>
 
@@ -504,7 +509,7 @@
         </div>
     </div>
 
-    <!-- ===== НОВЫЙ: Профиль канала ===== -->
+    <!-- Профиль канала -->
     <div class="modal" id="modal-channel-info">
         <div class="modal-content">
             <div class="modal-header">
@@ -513,26 +518,22 @@
             </div>
             <div class="modal-body">
                 <div class="user-profile-view">
-                    <div class="profile-avatar-big" id="channel-info-avatar">
-                        <i class="fas fa-bullhorn"></i>
-                    </div>
+                    <div class="profile-avatar-big" id="channel-info-avatar"><i class="fas fa-bullhorn"></i></div>
                     <div class="profile-name-big" id="channel-info-name">Канал</div>
                     <div class="profile-username-big" id="channel-info-handle">@handle</div>
                     <div class="profile-status-big" id="channel-info-subs">0 подписчиков</div>
-
                     <div class="profile-info-section" id="channel-info-desc-section" style="display:none;">
                         <div class="profile-info-label">Описание</div>
                         <div class="profile-info-text" id="channel-info-desc"></div>
                     </div>
-
                     <div class="profile-actions" style="width:100%;margin-top:12px;display:flex;flex-direction:column;gap:8px;">
                         <button class="btn btn-primary btn-full" onclick="UI.closeModal('modal-channel-info'); ChannelUI.toggleSubscribe();">
                             <i class="fas fa-bell"></i> Подписка / Отписка
                         </button>
                         <div id="channel-info-owner-section" style="display:none;">
-                            <div style="font-size:12px;color:var(--accent-glow);text-align:center;padding:8px 0;">
-                                <i class="fas fa-crown"></i> Вы владелец этого канала
-                            </div>
+                            <button class="btn btn-secondary btn-full" onclick="ChannelUI.showEditChannel()">
+                                <i class="fas fa-pen"></i> Редактировать канал
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -540,7 +541,42 @@
         </div>
     </div>
 
-    <!-- ===== НОВЫЙ: Профиль группы ===== -->
+    <!-- ===== НОВЫЙ: Редактирование канала ===== -->
+    <div class="modal" id="modal-edit-channel">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✏️ Редактировать канал</h3>
+                <button class="btn-icon" onclick="UI.closeModal('modal-edit-channel')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Название канала *</label>
+                    <input type="text" id="edit-channel-name" placeholder="Название канала">
+                </div>
+                <div class="form-group">
+                    <label>Описание</label>
+                    <textarea id="edit-channel-desc" rows="4" placeholder="Описание канала..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                        <input type="checkbox" id="edit-channel-public" style="width:auto;accent-color:var(--accent);">
+                        <span>Публичный канал</span>
+                    </label>
+                </div>
+                <button class="btn btn-primary btn-full" id="btn-save-channel" onclick="ChannelUI.saveChannel()">
+                    <i class="fas fa-save"></i> Сохранить изменения
+                </button>
+                <div class="danger-zone" style="margin-top:20px;">
+                    <div class="danger-zone-title">Опасная зона</div>
+                    <button class="btn btn-danger btn-full" onclick="ChannelUI.deleteChannel()">
+                        <i class="fas fa-trash"></i> Удалить канал
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Профиль группы -->
     <div class="modal" id="modal-group-info">
         <div class="modal-content modal-tall">
             <div class="modal-header">
@@ -549,18 +585,12 @@
             </div>
             <div class="modal-body">
                 <div style="text-align:center;margin-bottom:16px;">
-                    <div class="profile-avatar-big" id="group-info-avatar" style="margin:0 auto 12px;">
-                        <i class="fas fa-users"></i>
-                    </div>
+                    <div class="profile-avatar-big" id="group-info-avatar" style="margin:0 auto 12px;"><i class="fas fa-users"></i></div>
                     <div class="profile-name-big" id="group-info-name">Группа</div>
                     <div class="profile-status-big" id="group-info-count">0 участников</div>
                 </div>
-
-                <div style="font-size:13px;color:var(--text-secondary);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">
-                    Участники
-                </div>
+                <div style="font-size:13px;color:var(--text-secondary);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Участники</div>
                 <div id="group-info-members" class="user-list" style="max-height:300px;overflow-y:auto;"></div>
-
                 <div style="margin-top:16px;" id="group-info-leave-btn">
                     <button class="btn btn-danger btn-full">
                         <i class="fas fa-sign-out-alt"></i> Покинуть группу

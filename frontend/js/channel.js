@@ -26,6 +26,12 @@ const ChannelUI = {
                 subBtn.title = 'Подписаться';
             }
 
+            // Показываем кнопку редактирования только владельцу
+            const editBtn = document.getElementById('btn-edit-channel');
+            if (editBtn) {
+                editBtn.style.display = data.channel.is_owner ? 'flex' : 'none';
+            }
+
             const inputArea = document.getElementById('channel-input-area');
             inputArea.style.display = data.channel.is_owner ? 'flex' : 'none';
 
@@ -89,9 +95,7 @@ const ChannelUI = {
             } else {
                 mediaHtml = `
                     <div class="message-image-wrapper" style="margin-bottom:8px;">
-                        <img src="${src}"
-                             class="message-image"
-                             style="max-width:100%;"
+                        <img src="${src}" class="message-image" style="max-width:100%;"
                              alt="${post.file_name || 'Фото'}"
                              onclick="window.open('${src}', '_blank')"
                              onerror="this.parentElement.style.display='none'" />
@@ -132,12 +136,10 @@ const ChannelUI = {
                     <span class="message-time">${date}, ${time}</span>
                     <div class="channel-post-actions">
                         <button class="post-action-btn" onclick="ChannelUI.reactToPost(${post.id}, '👍')">
-                            <i class="far fa-thumbs-up"></i>
-                            ${post.likes_count || ''}
+                            <i class="far fa-thumbs-up"></i> ${post.likes_count || ''}
                         </button>
                         <button class="post-action-btn" onclick="ChatUI.showComments(${post.id})">
-                            <i class="far fa-comment"></i>
-                            ${post.comments_count || ''}
+                            <i class="far fa-comment"></i> ${post.comments_count || ''}
                         </button>
                         <button class="post-action-btn" onclick="ChatUI.showForward(${post.id})">
                             <i class="fas fa-share"></i>
@@ -147,12 +149,10 @@ const ChannelUI = {
             </div>`;
     },
 
-    // Открыть пикер файла для канала
     openChannelFilePicker() {
         document.getElementById('channel-file-input').click();
     },
 
-    // Обработка выбранного файла для канала
     async handleChannelFileSelect(input) {
         const file = input.files[0];
         if (!file) return;
@@ -168,7 +168,6 @@ const ChannelUI = {
             return;
         }
 
-        // Показываем превью
         const preview = document.getElementById('channel-file-preview');
         const previewImg = document.getElementById('channel-preview-img');
         const previewVideo = document.getElementById('channel-preview-video');
@@ -202,11 +201,9 @@ const ChannelUI = {
             Toast.show(error.error || 'Ошибка загрузки', 'error');
             this.cancelChannelFile();
         }
-
         input.value = '';
     },
 
-    // Отменить прикреплённый файл
     cancelChannelFile() {
         this.pendingChannelFile = null;
         document.getElementById('channel-file-preview').style.display = 'none';
@@ -295,8 +292,7 @@ const ChannelUI = {
 
         document.getElementById('channel-info-name').textContent = ch.name;
         document.getElementById('channel-info-handle').textContent = '@' + ch.handle;
-        document.getElementById('channel-info-subs').textContent =
-            `${ch.subscribers_count} подписчиков`;
+        document.getElementById('channel-info-subs').textContent = `${ch.subscribers_count} подписчиков`;
 
         const descSection = document.getElementById('channel-info-desc-section');
         if (ch.description && ch.description.trim()) {
@@ -306,9 +302,84 @@ const ChannelUI = {
             descSection.style.display = 'none';
         }
 
+        // Кнопки для владельца
         const ownerSection = document.getElementById('channel-info-owner-section');
         ownerSection.style.display = ch.is_owner ? 'block' : 'none';
 
         UI.openModal('modal-channel-info');
+    },
+
+    // Открыть модал редактирования канала
+    showEditChannel() {
+        if (!this.currentChannel || !this.currentChannel.is_owner) return;
+        const ch = this.currentChannel;
+
+        document.getElementById('edit-channel-name').value = ch.name || '';
+        document.getElementById('edit-channel-desc').value = ch.description || '';
+        document.getElementById('edit-channel-public').checked = ch.is_public !== false;
+
+        UI.closeModal('modal-channel-info');
+        UI.openModal('modal-edit-channel');
+    },
+
+    // Сохранить изменения канала
+    async saveChannel() {
+        if (!this.currentChannel) return;
+
+        const name = document.getElementById('edit-channel-name').value.trim();
+        const desc = document.getElementById('edit-channel-desc').value.trim();
+        const isPublic = document.getElementById('edit-channel-public').checked;
+
+        if (!name || name.length < 2) {
+            Toast.show('Название минимум 2 символа', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btn-save-channel');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Сохранение...';
+
+        try {
+            const data = await API.channels.update(this.currentChannel.id, {
+                name,
+                description: desc,
+                is_public: isPublic
+            });
+
+            // Обновляем данные текущего канала
+            this.currentChannel = { ...this.currentChannel, ...data.channel };
+
+            // Обновляем шапку канала
+            document.getElementById('channel-name').textContent = data.channel.name;
+
+            // Обновляем список каналов
+            await App.loadChannels();
+
+            UI.closeModal('modal-edit-channel');
+            Toast.show('Канал обновлён!', 'success');
+        } catch (error) {
+            Toast.show(error.error || 'Ошибка сохранения', 'error');
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Сохранить';
+    },
+
+    // Удалить канал
+    async deleteChannel() {
+        if (!this.currentChannel || !this.currentChannel.is_owner) return;
+
+        if (!confirm(`Удалить канал "${this.currentChannel.name}"? Это действие необратимо!`)) return;
+
+        try {
+            await API.channels.delete(this.currentChannel.id);
+            UI.closeModal('modal-edit-channel');
+            UI.closeModal('modal-channel-info');
+            UI.closeChat();
+            await App.loadChannels();
+            Toast.show('Канал удалён', 'success');
+        } catch (error) {
+            Toast.show(error.error || 'Ошибка удаления', 'error');
+        }
     }
 };

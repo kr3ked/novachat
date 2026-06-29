@@ -1597,3 +1597,59 @@ input::placeholder, textarea::placeholder {
     color: var(--text-secondary);
     margin-bottom: 16px;
 }
+/* ========== КОНТЕКСТНОЕ МЕНЮ ========== */
+.context-menu {
+    position: fixed;
+    z-index: 9999;
+    background: var(--bg-modal);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    min-width: 180px;
+    padding: 6px 0;
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    pointer-events: none;
+}
+
+.context-menu.visible {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: all;
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background var(--transition);
+    color: var(--text-primary);
+}
+
+.context-menu-item:hover {
+    background: var(--bg-hover);
+}
+
+.context-menu-item.danger {
+    color: var(--accent-red);
+}
+
+.context-menu-item.danger:hover {
+    background: rgba(237, 66, 69, 0.1);
+}
+
+.context-menu-item i {
+    width: 16px;
+    text-align: center;
+    font-size: 13px;
+}
+
+.context-menu-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+}

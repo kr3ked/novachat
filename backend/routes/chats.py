@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Chat, User, Message, chat_members
+from models import db, Chat, User, Message, Comment, message_likes, chat_members
 from routes.users import login_required
 
 chats_bp = Blueprint('chats', __name__)
@@ -22,7 +22,6 @@ def create_private_chat(user):
 
     if not other_user_id:
         return jsonify({'error': 'Укажите ID пользователя'}), 400
-
     if other_user_id == user.id:
         return jsonify({'error': 'Нельзя создать чат с самим собой'}), 400
 
@@ -42,17 +41,13 @@ def create_private_chat(user):
             'existing': True
         }), 200
 
-    chat = Chat(
-        chat_type='private',
-        created_by=user.id
-    )
+    chat = Chat(chat_type='private', created_by=user.id)
     chat.members.append(user)
     chat.members.append(other_user)
 
     db.session.add(chat)
     db.session.commit()
 
-    # Уведомляем второго пользователя о новом чате
     from app import socketio
     socketio.emit('chat_updated', {
         'chat_id': chat.id,
@@ -69,13 +64,11 @@ def create_private_chat(user):
 @login_required
 def create_group_chat(user):
     data = request.get_json()
-
     name = data.get('name', '').strip()
     member_ids = data.get('member_ids', [])
 
     if not name:
         return jsonify({'error': 'Укажите название группы'}), 400
-
     if len(name) < 2:
         return jsonify({'error': 'Название минимум 2 символа'}), 400
 
@@ -105,7 +98,6 @@ def create_group_chat(user):
     )
     db.session.commit()
 
-    # Уведомляем всех участников о новой группе
     from app import socketio
     for member in chat.members:
         socketio.emit('chat_updated', {
@@ -113,9 +105,7 @@ def create_group_chat(user):
             'new_chat': True
         }, room=f'user_{member.id}')
 
-    return jsonify({
-        'chat': chat.to_dict(current_user_id=user.id)
-    }), 201
+    return jsonify({'chat': chat.to_dict(current_user_id=user.id)}), 201
 
 
 @chats_bp.route('/<int:chat_id>', methods=['GET'])
@@ -124,7 +114,6 @@ def get_chat(user, chat_id):
     chat = Chat.query.get(chat_id)
     if not chat:
         return jsonify({'error': 'Чат не найден'}), 404
-
     if user not in chat.members:
         return jsonify({'error': 'Вы не участник этого чата'}), 403
 
@@ -140,24 +129,20 @@ def add_member(user, chat_id):
     chat = Chat.query.get(chat_id)
     if not chat or chat.chat_type != 'group':
         return jsonify({'error': 'Групповой чат не найден'}), 404
-
     if user not in chat.members:
         return jsonify({'error': 'Вы не участник этого чата'}), 403
 
     data = request.get_json()
     new_user_id = data.get('user_id')
-
     new_member = User.query.get(new_user_id)
     if not new_member:
         return jsonify({'error': 'Пользователь не найден'}), 404
-
     if new_member in chat.members:
         return jsonify({'error': 'Пользователь уже в чате'}), 409
 
     chat.members.append(new_member)
     db.session.commit()
 
-    # Уведомляем нового участника
     from app import socketio
     socketio.emit('chat_updated', {
         'chat_id': chat_id,
@@ -179,3 +164,54 @@ def leave_chat(user, chat_id):
         db.session.commit()
 
     return jsonify({'message': 'Вы покинули чат'}), 200
+
+
+@chats_bp.route('/<int:chat_id>/delete', methods=['DELETE'])
+@login_required
+def delete_chat(user, chat_id):
+    """Удалить чат (только для участника)"""
+    chat = Chat.query.get(chat_id)
+    if not chat:
+        return jsonify({'error': 'Чат не найден'}), 404
+    if user not in chat.members:
+        return jsonify({'error': 'Вы не участник этого чата'}), 403
+
+    try:
+        # Для приватного чата — удаляем полностью
+        if chat.chat_type == 'private':
+            # Удаляем все реакции на сообщения чата
+            for msg in Message.query.filter_by(chat_id=chat_id).all():
+                db.session.execute(
+                    message_likes.delete().where(
+                        message_likes.c.message_id == msg.id
+                    )
+                )
+                # Удаляем комментарии
+                Comment.query.filter_by(message_id=msg.id).delete()
+
+            # Удаляем сообщения
+            Message.query.filter_by(chat_id=chat_id).delete()
+
+            # Удаляем участников
+            db.session.execute(
+                chat_members.delete().where(
+                    chat_members.c.chat_id == chat_id
+                )
+            )
+
+            # Удаляем чат
+            db.session.delete(chat)
+            db.session.commit()
+
+            return jsonify({'message': 'Чат удалён', 'deleted': True}), 200
+
+        # Для группового чата — просто выходим
+        else:
+            chat.members.remove(user)
+            db.session.commit()
+            return jsonify({'message': 'Вы покинули группу', 'deleted': False}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f'Ошибка удаления чата: {e}')
+        return jsonify({'error': 'Ошибка удаления'}), 500

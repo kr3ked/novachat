@@ -8,6 +8,10 @@ const App = {
             if (!e.target.closest('.reactions-picker') && !e.target.closest('.message-action-btn')) {
                 document.getElementById('reactions-picker').style.display = 'none';
             }
+            // Закрываем контекстное меню при клике вне его
+            if (!e.target.closest('.context-menu')) {
+                this.hideContextMenu();
+            }
         });
     },
 
@@ -43,11 +47,10 @@ const App = {
         if (!user) return;
         document.getElementById('menu-username').textContent = user.display_name;
         document.getElementById('menu-phone').textContent = user.phone;
-        const avatarEl = document.getElementById('menu-avatar');
-        avatarEl.innerHTML = this.getAvatarHtml(user, 'avatar-lg');
+        document.getElementById('menu-avatar').innerHTML = this.getAvatarHtml(user);
     },
 
-    getAvatarHtml(user, extraClass = '') {
+    getAvatarHtml(user) {
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
         if (user.avatar_url) {
             const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
@@ -56,9 +59,7 @@ const App = {
         return user.display_name.charAt(0).toUpperCase();
     },
 
-    getAvatarContent(user) {
-        return this.getAvatarHtml(user);
-    },
+    getAvatarContent(user) { return this.getAvatarHtml(user); },
 
     connectSocket() {
         this.socket = io('https://novachat-backend-55fr.onrender.com');
@@ -116,7 +117,7 @@ const App = {
             const icon = chat.chat_type === 'group' ? 'fa-users' : 'fa-user';
             const preview = chat.last_message
                 ? (chat.last_message.text ||
-                   (chat.last_message.message_type === 'video' ? '🎥 Видео' : '🖼 Фото')).substring(0, 40)
+                  (chat.last_message.message_type === 'video' ? '🎥 Видео' : '🖼 Фото')).substring(0, 40)
                 : 'Нет сообщений';
             const time = chat.last_message ? ChatUI.formatTime(chat.last_message.created_at) : '';
 
@@ -131,7 +132,12 @@ const App = {
             }
 
             return `
-                <div class="chat-item ${isActive ? 'active' : ''}" data-chat-id="${chat.id}" onclick="ChatUI.openChat(${chat.id})">
+                <div class="chat-item ${isActive ? 'active' : ''}"
+                     data-chat-id="${chat.id}"
+                     data-chat-type="${chat.chat_type}"
+                     data-chat-name="${chat.name || ''}"
+                     onclick="ChatUI.openChat(${chat.id})"
+                     oncontextmenu="App.showChatContextMenu(event, ${chat.id}, '${chat.chat_type}', '${(chat.name || '').replace(/'/g, "\\'")}')">
                     <div class="avatar">${avatarContent}</div>
                     <div class="chat-item-info">
                         <div class="chat-item-top">
@@ -142,6 +148,76 @@ const App = {
                     </div>
                 </div>`;
         }).join('');
+    },
+
+    // ===== КОНТЕКСТНОЕ МЕНЮ ДЛЯ ЧАТОВ =====
+    showChatContextMenu(event, chatId, chatType, chatName) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        this.hideContextMenu();
+
+        const menu = document.getElementById('chat-context-menu');
+        const isGroup = chatType === 'group';
+
+        // Меняем текст в зависимости от типа чата
+        const deleteBtn = document.getElementById('ctx-delete-chat');
+        if (isGroup) {
+            deleteBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Покинуть группу';
+        } else {
+            deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Удалить чат';
+        }
+
+        deleteBtn.onclick = () => {
+            this.hideContextMenu();
+            this.deleteChatById(chatId, chatType, chatName);
+        };
+
+        // Позиционируем меню
+        const x = event.clientX;
+        const y = event.clientY;
+        const menuW = 200;
+        const menuH = 60;
+
+        menu.style.left = (x + menuW > window.innerWidth ? x - menuW : x) + 'px';
+        menu.style.top = (y + menuH > window.innerHeight ? y - menuH : y) + 'px';
+        menu.style.display = 'block';
+
+        // Анимация
+        requestAnimationFrame(() => menu.classList.add('visible'));
+    },
+
+    hideContextMenu() {
+        const menu = document.getElementById('chat-context-menu');
+        if (menu) {
+            menu.classList.remove('visible');
+            setTimeout(() => { menu.style.display = 'none'; }, 150);
+        }
+    },
+
+    async deleteChatById(chatId, chatType, chatName) {
+        const isGroup = chatType === 'group';
+        const confirmText = isGroup
+            ? `Покинуть группу "${chatName}"?`
+            : `Удалить чат? История сообщений будет удалена.`;
+
+        if (!confirm(confirmText)) return;
+
+        try {
+            const result = await API.chats.delete(chatId);
+
+            // Если это был открытый чат — закрываем
+            if (ChatUI.currentChat && ChatUI.currentChat.id === chatId) {
+                UI.closeChat();
+            }
+
+            await this.loadChats();
+
+            const msg = isGroup ? 'Вы покинули группу' : 'Чат удалён';
+            Toast.show(msg, 'success');
+        } catch (error) {
+            Toast.show(error.error || 'Ошибка', 'error');
+        }
     },
 
     async loadChannels() {
@@ -168,7 +244,9 @@ const App = {
             const avatarContent = ch.avatar_url
                 ? `<img src="${ch.avatar_url}" alt="">`
                 : ch.name.charAt(0).toUpperCase();
-            const preview = ch.last_post ? (ch.last_post.text || '📎 Медиа').substring(0, 40) : 'Нет постов';
+            const preview = ch.last_post
+                ? (ch.last_post.text || '📎 Медиа').substring(0, 40)
+                : 'Нет постов';
             const time = ch.last_post ? ChatUI.formatTime(ch.last_post.created_at) : '';
             return `
                 <div class="channel-item" onclick="ChannelUI.openChannel(${ch.id})">
@@ -360,21 +438,17 @@ const App = {
     async uploadAvatar(input) {
         const file = input.files[0];
         if (!file) return;
-
         const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
         if (!allowed.includes(file.type)) {
             Toast.show('Формат не поддерживается', 'error');
             input.value = '';
             return;
         }
-
         const reader = new FileReader();
         reader.onload = (e) => {
-            const avatarEl = document.getElementById('profile-avatar-preview');
-            avatarEl.innerHTML = `<img src="${e.target.result}" alt="">`;
+            document.getElementById('profile-avatar-preview').innerHTML = `<img src="${e.target.result}" alt="">`;
         };
         reader.readAsDataURL(file);
-
         Toast.show('Загрузка аватарки...', 'info');
         try {
             const data = await API.users.uploadAvatar(file);
@@ -450,13 +524,11 @@ const App = {
         }
     },
 
-    // Показать инфо группы
     async showGroupInfo() {
         if (!ChatUI.currentChat) return;
         const chat = ChatUI.currentChat;
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
 
-        // Аватар
         const avatarEl = document.getElementById('group-info-avatar');
         if (chat.avatar_url) {
             const src = chat.avatar_url.startsWith('http') ? chat.avatar_url : backendBase + chat.avatar_url;
@@ -466,10 +538,8 @@ const App = {
         }
 
         document.getElementById('group-info-name').textContent = chat.name || 'Группа';
-        document.getElementById('group-info-count').textContent =
-            `${chat.members_count} участников`;
+        document.getElementById('group-info-count').textContent = `${chat.members_count} участников`;
 
-        // Список участников
         const membersList = document.getElementById('group-info-members');
         if (chat.members_list && chat.members_list.length > 0) {
             membersList.innerHTML = chat.members_list.map(m => `
@@ -485,7 +555,6 @@ const App = {
             membersList.innerHTML = '<div class="empty-state"><p>Нет участников</p></div>';
         }
 
-        // Кнопка выйти из группы
         const leaveBtn = document.getElementById('group-info-leave-btn');
         if (chat.chat_type === 'group') {
             leaveBtn.style.display = 'block';
@@ -603,7 +672,6 @@ const UI = {
         this.switchTab('channels');
         document.getElementById('search-input').focus();
     },
-    // Обновлённый метод — открывает нужный профиль в зависимости от типа
     showChatInfo() {
         if (!ChatUI.currentChat) return;
         const chat = ChatUI.currentChat;
