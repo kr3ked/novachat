@@ -1,5 +1,4 @@
 :root {
-    /* 🌃 Ночной сине-индиго (Discord-style) */
     --bg-primary: #1e2030;
     --bg-secondary: #181a26;
     --bg-chat: #222538;
@@ -93,7 +92,6 @@ a { color: var(--text-link); text-decoration: none; }
 
 .auth-logo { text-align: center; margin-bottom: 40px; }
 
-/* 🎨 Новый логотип в стиле твоего лого */
 .logo-icon {
     width: 90px; 
     height: 90px; 
@@ -601,6 +599,7 @@ input::placeholder, textarea::placeholder {
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border); 
     gap: 4px;
+    flex-shrink: 0;
 }
 
 .chat-header-info {
@@ -621,23 +620,24 @@ input::placeholder, textarea::placeholder {
 .chat-header-status.online { color: var(--accent-green); }
 .chat-header-actions { display: flex; gap: 4px; }
 
+/* ========== ИСПРАВЛЕННАЯ ОБЛАСТЬ СООБЩЕНИЙ ========== */
 .messages-area {
-    flex: 1; 
-    overflow-y: auto; 
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 8px 0;
-    display: flex; 
-    flex-direction: column;
+    display: block;
+    position: relative;
+    min-height: 0;
 }
 
 .messages-container {
-    max-width: 720px; 
-    width: 100%; 
+    max-width: 720px;
+    width: 100%;
     margin: 0 auto;
-    padding: 0 16px;
-    display: flex; 
+    padding: 0 16px 8px;
+    display: flex;
     flex-direction: column;
-    justify-content: flex-end; 
-    min-height: 100%;
 }
 
 /* ========== СООБЩЕНИЯ ========== */
@@ -807,6 +807,7 @@ input::placeholder, textarea::placeholder {
     display: flex; 
     align-items: center; 
     gap: 8px;
+    flex-shrink: 0;
 }
 
 .typing-dots { display: flex; gap: 3px; }
@@ -832,6 +833,7 @@ input::placeholder, textarea::placeholder {
     padding: 8px 16px; 
     background: var(--bg-secondary);
     border-top: 1px solid var(--border);
+    flex-shrink: 0;
 }
 
 .reply-preview-content {
@@ -861,6 +863,7 @@ input::placeholder, textarea::placeholder {
     background: var(--bg-secondary);
     border-top: 1px solid var(--border); 
     gap: 4px;
+    flex-shrink: 0;
 }
 
 .message-input-wrapper { flex: 1; }
@@ -1156,6 +1159,7 @@ input::placeholder, textarea::placeholder {
     color: var(--accent); 
 }
 
+/* ========== МОБИЛЬНЫЕ ========== */
 @media (max-width: 768px) {
     .sidebar { width: 100%; min-width: 100%; }
     .main-panel {
@@ -1175,7 +1179,7 @@ input::placeholder, textarea::placeholder {
 @media (min-width: 769px) {
     .btn-back { display: none !important; }
 }
-/* ========== ИСПРАВЛЕНИЕ FAB НА МОБИЛЬНЫХ ========== */
+
 @media (max-width: 768px) {
     .fab {
         bottom: 80px;
@@ -1185,7 +1189,6 @@ input::placeholder, textarea::placeholder {
         font-size: 18px;
     }
     
-    /* Учитываем безопасную зону iPhone */
     @supports (padding: max(0px)) {
         .fab {
             bottom: max(80px, calc(80px + env(safe-area-inset-bottom)));
@@ -1193,35 +1196,21 @@ input::placeholder, textarea::placeholder {
     }
 }
 
-/* Для совсем маленьких экранов */
 @media (max-width: 480px) {
     .fab {
         bottom: 75px;
         right: 14px;
     }
 }
-/* ========== ИСПРАВЛЕНИЕ ИНТЕРФЕЙСА НА МОБИЛЬНЫХ ========== */
 
-/* Используем динамическую высоту экрана */
 @supports (height: 100dvh) {
-    body {
-        height: 100dvh;
-    }
-    .screen {
-        height: 100dvh;
-    }
-    .chat-view, .channel-view {
-        height: 100dvh;
-    }
-    .sidebar {
-        height: 100dvh;
-    }
-    .slide-menu {
-        height: 100dvh;
-    }
+    body { height: 100dvh; }
+    .screen { height: 100dvh; }
+    .chat-view, .channel-view { height: 100dvh; }
+    .sidebar { height: 100dvh; }
+    .slide-menu { height: 100dvh; }
 }
 
-/* Фикс для всех мобильных */
 @media (max-width: 768px) {
     html, body {
         height: 100%;
@@ -1237,16 +1226,13 @@ input::placeholder, textarea::placeholder {
         overflow: hidden;
     }
     
-    .screen.active {
-        height: 100%;
-    }
+    .screen.active { height: 100%; }
     
     .chat-view, .channel-view {
         height: 100%;
         max-height: 100%;
     }
     
-    /* Поле ввода всегда внизу */
     .message-input-area {
         position: sticky;
         bottom: 0;
@@ -1262,7 +1248,6 @@ input::placeholder, textarea::placeholder {
         -webkit-overflow-scrolling: touch;
     }
     
-    /* Для безопасной зоны iPhone сверху */
     .chat-header {
         padding-top: env(safe-area-inset-top);
         height: calc(var(--header-height) + env(safe-area-inset-top));
@@ -1274,21 +1259,14 @@ input::placeholder, textarea::placeholder {
     }
 }
 
-/* Фикс scroll при открытой клавиатуре */
 @media (max-width: 768px) {
-    .messages-container {
-        padding-bottom: 8px;
-    }
+    .messages-container { padding-bottom: 8px; }
     
-    /* Когда поле в фокусе - убираем фон */
-    .message-input-wrapper textarea:focus {
-        font-size: 16px; /* Не даём iOS зумить */
-    }
-    
-    input, textarea {
-        font-size: 16px !important; /* Не даём iOS зумить */
-    }
-}/* ========== ПРОСМОТР ПРОФИЛЯ ========== */
+    .message-input-wrapper textarea:focus { font-size: 16px; }
+    input, textarea { font-size: 16px !important; }
+}
+
+/* ========== ПРОСМОТР ПРОФИЛЯ ========== */
 .user-profile-view {
     display: flex;
     flex-direction: column;
@@ -1338,9 +1316,7 @@ input::placeholder, textarea::placeholder {
     margin-bottom: 24px;
 }
 
-.profile-status-big.online {
-    color: var(--accent-green);
-}
+.profile-status-big.online { color: var(--accent-green); }
 
 .profile-info-section {
     width: 100%;
@@ -1369,86 +1345,13 @@ input::placeholder, textarea::placeholder {
     margin-top: 12px;
 }
 
-/* Кликабельные аватары и шапки */
 .chat-header-info,
 .message-sender,
-.comment-author {
-    cursor: pointer;
-}
+.comment-author { cursor: pointer; }
 
 .message-sender:hover,
-.comment-author:hover {
-    text-decoration: underline;
-}
-/* ========== ОПАСНАЯ ЗОНА ========== */
-.danger-zone {
-    margin-top: 30px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
-}
+.comment-author:hover { text-decoration: underline; }
 
-.danger-zone-title {
-    font-size: 12px;
-    color: var(--accent-red);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 12px;
-    font-weight: 600;
-}
-
-.btn-danger {
-    background: linear-gradient(135deg, #c93b3b 0%, #8a2828 100%) !important;
-    color: white;
-    box-shadow: 0 4px 16px rgba(201, 59, 59, 0.3);
-}
-
-.btn-danger:hover {
-    background: linear-gradient(135deg, #d44949 0%, #a13333 100%) !important;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 24px rgba(201, 59, 59, 0.5);
-}
-
-.btn-secondary {
-    background: var(--bg-input);
-    color: var(--text-primary);
-    border: 1px solid var(--border);
-}
-
-.btn-secondary:hover {
-    background: var(--bg-hover);
-}
-
-.delete-warning {
-    background: rgba(237, 66, 69, 0.1);
-    border: 1px solid rgba(237, 66, 69, 0.3);
-    border-radius: var(--radius-md);
-    padding: 16px;
-    margin-bottom: 16px;
-    text-align: center;
-}
-
-.delete-warning i {
-    font-size: 32px;
-    color: var(--accent-red);
-    margin-bottom: 12px;
-}
-
-.delete-warning p {
-    margin-bottom: 8px;
-    font-size: 14px;
-    color: var(--text-primary);
-}
-
-.delete-warning ul {
-    text-align: left;
-    margin: 12px 0 0 20px;
-    font-size: 13px;
-    color: var(--text-secondary);
-}
-
-.delete-warning ul li {
-    margin-bottom: 4px;
-}
 /* ========== ОПАСНАЯ ЗОНА ========== */
 .danger-zone {
     margin-top: 24px;
@@ -1482,9 +1385,7 @@ input::placeholder, textarea::placeholder {
     border: 1px solid var(--border);
 }
 
-.btn-secondary:hover {
-    background: var(--bg-hover);
-}
+.btn-secondary:hover { background: var(--bg-hover); }
 
 .warning-box {
     background: rgba(196, 86, 74, 0.1);
@@ -1526,8 +1427,7 @@ input::placeholder, textarea::placeholder {
 .warning-box li {
     font-size: 13px;
     color: var(--text-secondary);
-    padding: 2px 0;
-    padding-left: 16px;
+    padding: 2px 0 2px 16px;
     position: relative;
 }
 
@@ -1544,68 +1444,8 @@ input::placeholder, textarea::placeholder {
     margin-top: 16px;
 }
 
-.delete-buttons .btn {
-    flex: 1;
-}
-/* ========== ИЗОБРАЖЕНИЯ В СООБЩЕНИЯХ ========== */
-.message-image-wrapper {
-    margin: 4px 0;
-}
+.delete-buttons .btn { flex: 1; }
 
-.message-image {
-    max-width: 260px;
-    max-height: 260px;
-    width: 100%;
-    border-radius: 10px;
-    cursor: pointer;
-    display: block;
-    object-fit: contain;
-    transition: opacity var(--transition), transform var(--transition);
-    border: 1px solid rgba(139, 92, 246, 0.15);
-}
-
-.message-image:hover {
-    opacity: 0.92;
-    transform: scale(1.01);
-}
-
-@media (max-width: 768px) {
-    .message-image {
-        max-width: 200px;
-        max-height: 200px;
-    }
-}
-/* ========== ЗАГРУЗКА СТАРЫХ СООБЩЕНИЙ ========== */
-.loading-more {
-    display: flex;
-    justify-content: center;
-    padding: 12px 0;
-}
-
-.loading-more-inner {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 16px;
-    background: rgba(139, 92, 246, 0.1);
-    border-radius: 20px;
-    font-size: 13px;
-    color: var(--text-secondary);
-}
-
-.end-of-history {
-    text-align: center;
-    padding: 16px 0 8px;
-}
-
-.end-of-history span {
-    background: rgba(139, 92, 246, 0.1);
-    border: 1px solid rgba(139, 92, 246, 0.2);
-    padding: 4px 14px;
-    border-radius: 12px;
-    font-size: 12px;
-    color: var(--text-secondary);
-}
 /* ========== ИСТОРИЯ СООБЩЕНИЙ ========== */
 .loading-more {
     display: flex;
@@ -1639,9 +1479,7 @@ input::placeholder, textarea::placeholder {
 }
 
 /* ========== ИЗОБРАЖЕНИЯ В СООБЩЕНИЯХ ========== */
-.message-image-wrapper {
-    margin: 4px 0;
-}
+.message-image-wrapper { margin: 4px 0; }
 
 .message-image {
     max-width: 260px;

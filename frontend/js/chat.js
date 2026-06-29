@@ -9,7 +9,6 @@ const ChatUI = {
     currentPage: 1,
     totalPages: 1,
     isLoadingMore: false,
-    scrollListenerAttached: false,
 
     async openChat(chatId) {
         try {
@@ -17,7 +16,6 @@ const ChatUI = {
             this.currentChat = chatData.chat;
             this.currentChat.members_list = chatData.members;
 
-            // Сбрасываем пагинацию
             this.currentPage = 1;
             this.totalPages = 1;
             this.isLoadingMore = false;
@@ -57,7 +55,6 @@ const ChatUI = {
         }
     },
 
-    // Первичная загрузка (сбрасывает всё)
     async initialLoad(chatId) {
         try {
             const data = await API.messages.getChatMessages(chatId, 1);
@@ -70,7 +67,6 @@ const ChatUI = {
         }
     },
 
-    // Тихое обновление — НЕ сбрасывает пагинацию, НЕ прыгает скролл
     async silentRefresh() {
         if (!this.currentChat) return;
         try {
@@ -78,20 +74,24 @@ const ChatUI = {
             const wasAtBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 60;
 
             const data = await API.messages.getChatMessages(this.currentChat.id, 1);
-            // Обновляем только первую страницу в currentMessages
-            const oldOtherPages = this.currentMessages.slice(0, this.currentMessages.length - data.messages.length);
-            this.currentMessages = [...oldOtherPages, ...data.messages];
+            const newMsgs = data.messages;
 
-            // Перерендериваем без сброса скролла
+            if (this.currentMessages.length <= 50) {
+                this.currentMessages = newMsgs;
+            } else {
+                this.currentMessages = [
+                    ...this.currentMessages.slice(0, this.currentMessages.length - newMsgs.length),
+                    ...newMsgs
+                ];
+            }
+
             this.rerenderAll();
-
             if (wasAtBottom) this.scrollToBottom();
         } catch (error) {
             console.error('Silent refresh error:', error);
         }
     },
 
-    // Полный перерендер всех currentMessages без изменения скролла
     rerenderAll() {
         const container = document.getElementById('messages-container');
         const userId = Auth.currentUser.id;
@@ -113,30 +113,50 @@ const ChatUI = {
             html = `<div class="end-of-history"><span>📜 Начало переписки</span></div>` + html;
         }
 
-        container.innerHTML = html;
+        container.innerHTML = `<div id="scroll-trigger" style="height:1px;width:100%;"></div>` + html;
     },
 
     initScrollListener() {
         const area = document.getElementById('messages-area');
 
-        // Удаляем старый если есть
         if (this._boundScrollHandler) {
             area.removeEventListener('scroll', this._boundScrollHandler);
         }
-
-        // Создаём привязанный обработчик
-        this._boundScrollHandler = this._onScroll.bind(this);
-        area.addEventListener('scroll', this._boundScrollHandler, { passive: true });
-    },
-
-    _onScroll() {
-        const area = document.getElementById('messages-area');
-        if (!area) return;
-
-        // Триггер — верхние 80px
-        if (area.scrollTop <= 80) {
-            this.loadMoreMessages();
+        if (this._observer) {
+            this._observer.disconnect();
         }
+
+        const container = document.getElementById('messages-container');
+        let trigger = document.getElementById('scroll-trigger');
+        if (!trigger) {
+            trigger = document.createElement('div');
+            trigger.id = 'scroll-trigger';
+            trigger.style.cssText = 'height: 1px; width: 100%;';
+            container.insertBefore(trigger, container.firstChild);
+        }
+
+        this._observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        this.loadMoreMessages();
+                    }
+                });
+            },
+            {
+                root: area,
+                threshold: 0.1
+            }
+        );
+
+        this._observer.observe(trigger);
+
+        this._boundScrollHandler = () => {
+            if (area.scrollTop <= 100) {
+                this.loadMoreMessages();
+            }
+        };
+        area.addEventListener('scroll', this._boundScrollHandler, { passive: true });
     },
 
     async loadMoreMessages() {
@@ -147,8 +167,6 @@ const ChatUI = {
         this.isLoadingMore = true;
 
         const area = document.getElementById('messages-area');
-
-        // Запоминаем текущую высоту
         const scrollHeightBefore = area.scrollHeight;
 
         this.showLoadingIndicator();
@@ -167,17 +185,15 @@ const ChatUI = {
             this.currentPage = nextPage;
             this.totalPages = data.pages;
 
-            // Добавляем старые сообщения В НАЧАЛО массива
             this.currentMessages = [...data.messages, ...this.currentMessages];
 
-            // Вставляем HTML старых сообщений перед текущими
             this.prependMessages(data.messages);
 
-            // Восстанавливаем позицию скролла — не прыгает
-            const scrollHeightAfter = area.scrollHeight;
-            area.scrollTop = scrollHeightAfter - scrollHeightBefore;
+            requestAnimationFrame(() => {
+                const scrollHeightAfter = area.scrollHeight;
+                area.scrollTop = scrollHeightAfter - scrollHeightBefore;
+            });
 
-            // Показываем метку начала если дошли до конца
             if (this.currentPage >= this.totalPages) {
                 this.showEndOfHistory();
             }
@@ -203,7 +219,12 @@ const ChatUI = {
                 </div>
                 <span>Загрузка...</span>
             </div>`;
-        container.insertBefore(el, container.firstChild);
+        const trigger = document.getElementById('scroll-trigger');
+        if (trigger && trigger.nextSibling) {
+            container.insertBefore(el, trigger.nextSibling);
+        } else {
+            container.insertBefore(el, container.firstChild);
+        }
     },
 
     hideLoadingIndicator() {
@@ -231,10 +252,14 @@ const ChatUI = {
         const temp = document.createElement('div');
         temp.innerHTML = html;
 
-        const firstChild = container.firstChild;
-        while (temp.lastChild) {
-            container.insertBefore(temp.lastChild, firstChild);
+        const trigger = document.getElementById('scroll-trigger');
+        const anchor = trigger ? trigger.nextSibling : container.firstChild;
+
+        const fragment = document.createDocumentFragment();
+        while (temp.firstChild) {
+            fragment.appendChild(temp.firstChild);
         }
+        container.insertBefore(fragment, anchor);
     },
 
     showEndOfHistory() {
@@ -243,7 +268,12 @@ const ChatUI = {
         const el = document.createElement('div');
         el.className = 'end-of-history';
         el.innerHTML = `<span>📜 Начало переписки</span>`;
-        container.insertBefore(el, container.firstChild);
+        const trigger = document.getElementById('scroll-trigger');
+        if (trigger && trigger.nextSibling) {
+            container.insertBefore(el, trigger.nextSibling);
+        } else {
+            container.insertBefore(el, container.firstChild);
+        }
     },
 
     renderMessages(messages) {
@@ -276,7 +306,7 @@ const ChatUI = {
             html = `<div class="end-of-history"><span>📜 Начало переписки</span></div>` + html;
         }
 
-        container.innerHTML = html;
+        container.innerHTML = `<div id="scroll-trigger" style="height:1px;width:100%;"></div>` + html;
         this.scrollToBottom();
     },
 
@@ -413,7 +443,6 @@ const ChatUI = {
                     imageData ? imageData.file_url : null,
                     imageData ? imageData.file_name : null
                 );
-                // Используем silentRefresh чтобы не сбросить пагинацию
                 await this.silentRefresh();
             }
         } catch (error) {
@@ -516,7 +545,6 @@ const ChatUI = {
         if (!id) return;
         try {
             await API.messages.toggleLike(id, emoji);
-            // silentRefresh вместо loadMessages — не сбрасывает пагинацию!
             await this.silentRefresh();
         } catch (error) {
             Toast.show('Ошибка', 'error');
