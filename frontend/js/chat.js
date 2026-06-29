@@ -9,6 +9,7 @@ const ChatUI = {
     currentPage: 1,
     totalPages: 1,
     isLoadingMore: false,
+    scrollListenerAttached: false,
 
     async openChat(chatId) {
         try {
@@ -16,7 +17,7 @@ const ChatUI = {
             this.currentChat = chatData.chat;
             this.currentChat.members_list = chatData.members;
 
-            // Сбрасываем пагинацию при открытии нового чата
+            // Сбрасываем пагинацию
             this.currentPage = 1;
             this.totalPages = 1;
             this.isLoadingMore = false;
@@ -40,9 +41,7 @@ const ChatUI = {
                     `${chat.members_count} участников`;
             }
 
-            await this.loadMessages(chatId, 1);
-
-            // Вешаем слушатель скролла
+            await this.initialLoad(chatId);
             this.initScrollListener();
 
             if (App.socket) App.socket.emit('join_chat', { chat_id: chatId });
@@ -58,26 +57,11 @@ const ChatUI = {
         }
     },
 
-    initScrollListener() {
-        const area = document.getElementById('messages-area');
-
-        // Удаляем старый слушатель чтобы не дублировался
-        area.removeEventListener('scroll', this._scrollHandler);
-
-        this._scrollHandler = async () => {
-            // Если проскроллили к самому верху
-            if (area.scrollTop <= 50) {
-                await this.loadMoreMessages();
-            }
-        };
-
-        area.addEventListener('scroll', this._scrollHandler);
-    },
-
-    async loadMessages(chatId, page = 1) {
+    // Первичная загрузка (сбрасывает всё)
+    async initialLoad(chatId) {
         try {
-            const data = await API.messages.getChatMessages(chatId, page);
-            this.currentPage = page;
+            const data = await API.messages.getChatMessages(chatId, 1);
+            this.currentPage = 1;
             this.totalPages = data.pages;
             this.currentMessages = data.messages;
             this.renderMessages(data.messages);
@@ -86,8 +70,76 @@ const ChatUI = {
         }
     },
 
+    // Тихое обновление — НЕ сбрасывает пагинацию, НЕ прыгает скролл
+    async silentRefresh() {
+        if (!this.currentChat) return;
+        try {
+            const area = document.getElementById('messages-area');
+            const wasAtBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 60;
+
+            const data = await API.messages.getChatMessages(this.currentChat.id, 1);
+            // Обновляем только первую страницу в currentMessages
+            const oldOtherPages = this.currentMessages.slice(0, this.currentMessages.length - data.messages.length);
+            this.currentMessages = [...oldOtherPages, ...data.messages];
+
+            // Перерендериваем без сброса скролла
+            this.rerenderAll();
+
+            if (wasAtBottom) this.scrollToBottom();
+        } catch (error) {
+            console.error('Silent refresh error:', error);
+        }
+    },
+
+    // Полный перерендер всех currentMessages без изменения скролла
+    rerenderAll() {
+        const container = document.getElementById('messages-container');
+        const userId = Auth.currentUser.id;
+
+        let html = '';
+        let lastDate = '';
+
+        this.currentMessages.forEach(msg => {
+            const msgDate = new Date(msg.created_at).toLocaleDateString('ru-RU');
+            if (msgDate !== lastDate) {
+                html += `<div class="date-separator"><span>${this.formatDate(msg.created_at)}</span></div>`;
+                lastDate = msgDate;
+            }
+            const isOutgoing = msg.sender && msg.sender.id === userId;
+            html += this.renderMessage(msg, isOutgoing);
+        });
+
+        if (this.currentPage >= this.totalPages) {
+            html = `<div class="end-of-history"><span>📜 Начало переписки</span></div>` + html;
+        }
+
+        container.innerHTML = html;
+    },
+
+    initScrollListener() {
+        const area = document.getElementById('messages-area');
+
+        // Удаляем старый если есть
+        if (this._boundScrollHandler) {
+            area.removeEventListener('scroll', this._boundScrollHandler);
+        }
+
+        // Создаём привязанный обработчик
+        this._boundScrollHandler = this._onScroll.bind(this);
+        area.addEventListener('scroll', this._boundScrollHandler, { passive: true });
+    },
+
+    _onScroll() {
+        const area = document.getElementById('messages-area');
+        if (!area) return;
+
+        // Триггер — верхние 80px
+        if (area.scrollTop <= 80) {
+            this.loadMoreMessages();
+        }
+    },
+
     async loadMoreMessages() {
-        // Если уже грузим или все страницы загружены — выходим
         if (this.isLoadingMore) return;
         if (this.currentPage >= this.totalPages) return;
         if (!this.currentChat) return;
@@ -95,42 +147,45 @@ const ChatUI = {
         this.isLoadingMore = true;
 
         const area = document.getElementById('messages-area');
-        const container = document.getElementById('messages-container');
 
-        // Запоминаем высоту до добавления сообщений
-        const oldScrollHeight = area.scrollHeight;
+        // Запоминаем текущую высоту
+        const scrollHeightBefore = area.scrollHeight;
 
-        // Показываем индикатор загрузки вверху
         this.showLoadingIndicator();
 
         try {
             const nextPage = this.currentPage + 1;
             const data = await API.messages.getChatMessages(this.currentChat.id, nextPage);
 
-            this.currentPage = nextPage;
-            this.totalPages = data.pages;
-
-            // Убираем индикатор
             this.hideLoadingIndicator();
 
-            if (data.messages.length === 0) {
+            if (!data.messages || data.messages.length === 0) {
                 this.isLoadingMore = false;
                 return;
             }
 
-            // Добавляем старые сообщения в начало массива
+            this.currentPage = nextPage;
+            this.totalPages = data.pages;
+
+            // Добавляем старые сообщения В НАЧАЛО массива
             this.currentMessages = [...data.messages, ...this.currentMessages];
 
-            // Рендерим только новые (старые) сообщения и вставляем вверху
+            // Вставляем HTML старых сообщений перед текущими
             this.prependMessages(data.messages);
 
-            // Восстанавливаем позицию скролла чтобы не прыгало
-            const newScrollHeight = area.scrollHeight;
-            area.scrollTop = newScrollHeight - oldScrollHeight;
+            // Восстанавливаем позицию скролла — не прыгает
+            const scrollHeightAfter = area.scrollHeight;
+            area.scrollTop = scrollHeightAfter - scrollHeightBefore;
+
+            // Показываем метку начала если дошли до конца
+            if (this.currentPage >= this.totalPages) {
+                this.showEndOfHistory();
+            }
 
         } catch (error) {
             this.hideLoadingIndicator();
-            console.error('Error loading more messages:', error);
+            console.error('Error loading more:', error);
+            Toast.show('Ошибка загрузки истории', 'error');
         }
 
         this.isLoadingMore = false;
@@ -138,23 +193,22 @@ const ChatUI = {
 
     showLoadingIndicator() {
         const container = document.getElementById('messages-container');
-        // Проверяем чтобы не дублировать
         if (container.querySelector('.loading-more')) return;
-
-        const indicator = document.createElement('div');
-        indicator.className = 'loading-more';
-        indicator.innerHTML = `
+        const el = document.createElement('div');
+        el.className = 'loading-more';
+        el.innerHTML = `
             <div class="loading-more-inner">
                 <div class="typing-dots">
                     <span></span><span></span><span></span>
                 </div>
+                <span>Загрузка...</span>
             </div>`;
-        container.insertBefore(indicator, container.firstChild);
+        container.insertBefore(el, container.firstChild);
     },
 
     hideLoadingIndicator() {
-        const indicator = document.querySelector('.loading-more');
-        if (indicator) indicator.remove();
+        const el = document.querySelector('.loading-more');
+        if (el) el.remove();
     },
 
     prependMessages(messages) {
@@ -174,30 +228,22 @@ const ChatUI = {
             html += this.renderMessage(msg, isOutgoing);
         });
 
-        // Вставляем в начало контейнера
         const temp = document.createElement('div');
         temp.innerHTML = html;
 
-        // Вставляем все элементы перед первым дочерним элементом
         const firstChild = container.firstChild;
-        while (temp.firstChild) {
-            container.insertBefore(temp.firstChild, firstChild);
-        }
-
-        // Если достигли последней страницы — показываем метку
-        if (this.currentPage >= this.totalPages) {
-            this.showEndOfHistory();
+        while (temp.lastChild) {
+            container.insertBefore(temp.lastChild, firstChild);
         }
     },
 
     showEndOfHistory() {
         const container = document.getElementById('messages-container');
         if (container.querySelector('.end-of-history')) return;
-
-        const label = document.createElement('div');
-        label.className = 'end-of-history';
-        label.innerHTML = `<span>Начало переписки</span>`;
-        container.insertBefore(label, container.firstChild);
+        const el = document.createElement('div');
+        el.className = 'end-of-history';
+        el.innerHTML = `<span>📜 Начало переписки</span>`;
+        container.insertBefore(el, container.firstChild);
     },
 
     renderMessages(messages) {
@@ -226,9 +272,8 @@ const ChatUI = {
             html += this.renderMessage(msg, isOutgoing);
         });
 
-        // Если это первая и последняя страница — показываем начало истории
         if (this.totalPages <= 1) {
-            html = `<div class="end-of-history"><span>Начало переписки</span></div>` + html;
+            html = `<div class="end-of-history"><span>📜 Начало переписки</span></div>` + html;
         }
 
         container.innerHTML = html;
@@ -368,7 +413,8 @@ const ChatUI = {
                     imageData ? imageData.file_url : null,
                     imageData ? imageData.file_name : null
                 );
-                await this.loadMessages(this.currentChat.id);
+                // Используем silentRefresh чтобы не сбросить пагинацию
+                await this.silentRefresh();
             }
         } catch (error) {
             Toast.show('Ошибка отправки', 'error');
@@ -470,7 +516,8 @@ const ChatUI = {
         if (!id) return;
         try {
             await API.messages.toggleLike(id, emoji);
-            if (this.currentChat) await this.loadMessages(this.currentChat.id);
+            // silentRefresh вместо loadMessages — не сбрасывает пагинацию!
+            await this.silentRefresh();
         } catch (error) {
             Toast.show('Ошибка', 'error');
         }
@@ -514,7 +561,7 @@ const ChatUI = {
             await API.messages.addComment(this.activeCommentMessageId, text);
             input.value = '';
             await this.showComments(this.activeCommentMessageId);
-            if (this.currentChat) await this.loadMessages(this.currentChat.id);
+            await this.silentRefresh();
         } catch (error) {
             Toast.show('Ошибка', 'error');
         }
@@ -560,7 +607,7 @@ const ChatUI = {
             UI.closeModal('modal-forward');
             Toast.show('Сообщение переслано', 'success');
             if (this.currentChat && this.currentChat.id === targetId) {
-                await this.loadMessages(this.currentChat.id);
+                await this.silentRefresh();
             }
         } catch (error) {
             Toast.show('Ошибка пересылки', 'error');
@@ -574,7 +621,7 @@ const ChatUI = {
         if (newText === null || newText.trim() === '') return;
         try {
             await API.messages.edit(messageId, newText.trim());
-            await this.loadMessages(this.currentChat.id);
+            await this.silentRefresh();
             Toast.show('Сообщение отредактировано', 'success');
         } catch (error) {
             Toast.show('Ошибка', 'error');
@@ -585,7 +632,7 @@ const ChatUI = {
         if (!confirm('Удалить сообщение?')) return;
         try {
             await API.messages.delete(messageId);
-            await this.loadMessages(this.currentChat.id);
+            await this.silentRefresh();
             Toast.show('Сообщение удалено', 'success');
         } catch (error) {
             Toast.show('Ошибка', 'error');

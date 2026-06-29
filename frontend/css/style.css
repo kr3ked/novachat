@@ -1606,3 +1606,63 @@ input::placeholder, textarea::placeholder {
     font-size: 12px;
     color: var(--text-secondary);
 }
+/* ========== ИСТОРИЯ СООБЩЕНИЙ ========== */
+.loading-more {
+    display: flex;
+    justify-content: center;
+    padding: 12px 0;
+}
+
+.loading-more-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    background: rgba(139, 92, 246, 0.1);
+    border-radius: 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.end-of-history {
+    text-align: center;
+    padding: 16px 0 8px;
+}
+
+.end-of-history span {
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    padding: 4px 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ========== ИЗОБРАЖЕНИЯ В СООБЩЕНИЯХ ========== */
+.message-image-wrapper {
+    margin: 4px 0;
+}
+
+.message-image {
+    max-width: 260px;
+    max-height: 260px;
+    width: 100%;
+    border-radius: 10px;
+    cursor: pointer;
+    display: block;
+    object-fit: contain;
+    transition: opacity var(--transition), transform var(--transition);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+.message-image:hover {
+    opacity: 0.92;
+    transform: scale(1.01);
+}
+
+@media (max-width: 768px) {
+    .message-image {
+        max-width: 200px;
+        max-height: 200px;
+    }
+}
