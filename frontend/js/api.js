@@ -124,21 +124,22 @@ const API = {
         async getChannelPosts(channelId, page = 1) {
             return API.request(`/messages/channel/${channelId}?page=${page}`);
         },
-        async send(chatId, text, replyToId = null, fileUrl = null, fileName = null) {
+        async send(chatId, text, replyToId = null, fileUrl = null, fileName = null, fileType = null) {
             return API.request('/messages/send', {
                 method: 'POST',
-                body: { 
-                    chat_id: chatId, 
-                    text, 
+                body: {
+                    chat_id: chatId,
+                    text,
                     reply_to_id: replyToId,
                     file_url: fileUrl,
-                    file_name: fileName
+                    file_name: fileName,
+                    file_type: fileType
                 }
             });
         },
-        async uploadImage(file) {
+        async uploadFile(file) {
             const formData = new FormData();
-            formData.append('image', file);
+            formData.append('file', file);
 
             const response = await fetch(`${API.BASE_URL}/messages/upload`, {
                 method: 'POST',

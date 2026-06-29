@@ -143,10 +143,7 @@ const ChatUI = {
                     }
                 });
             },
-            {
-                root: area,
-                threshold: 0.1
-            }
+            { root: area, threshold: 0.1 }
         );
 
         this._observer.observe(trigger);
@@ -184,7 +181,6 @@ const ChatUI = {
 
             this.currentPage = nextPage;
             this.totalPages = data.pages;
-
             this.currentMessages = [...data.messages, ...this.currentMessages];
 
             this.prependMessages(data.messages);
@@ -323,6 +319,7 @@ const ChatUI = {
         const senderName = msg.sender ? msg.sender.display_name : 'Неизвестный';
         const time = this.formatTime(msg.created_at);
         const isGroup = this.currentChat && this.currentChat.chat_type === 'group';
+        const backendBase = 'https://novachat-backend-55fr.onrender.com';
 
         let replyHtml = '';
         if (msg.reply_to) {
@@ -344,18 +341,33 @@ const ChatUI = {
                 </div>`;
         }
 
-        let imageHtml = '';
-        if (msg.file_url && (msg.message_type === 'image' || msg.message_type === 'forwarded')) {
-            const backendBase = 'https://novachat-backend-55fr.onrender.com';
+        // Медиа: фото или видео
+        let mediaHtml = '';
+        if (msg.file_url) {
             const src = msg.file_url.startsWith('http') ? msg.file_url : backendBase + msg.file_url;
-            imageHtml = `
-                <div class="message-image-wrapper">
-                    <img src="${src}"
-                         class="message-image"
-                         alt="${msg.file_name || 'Фото'}"
-                         onclick="window.open('${src}', '_blank')"
-                         onerror="this.parentElement.innerHTML='<span style=\\'color:var(--text-secondary);font-size:12px;\\'>Фото недоступно</span>'" />
-                </div>`;
+            const isVideo = msg.message_type === 'video' ||
+                /\.(mp4|webm|ogg|mov|avi)$/i.test(msg.file_url);
+
+            if (isVideo) {
+                mediaHtml = `
+                    <div class="message-video-wrapper">
+                        <video class="message-video" controls preload="metadata">
+                            <source src="${src}" type="video/mp4">
+                            <source src="${src}" type="video/webm">
+                            Ваш браузер не поддерживает видео.
+                        </video>
+                        <div class="video-filename">${msg.file_name || 'Видео'}</div>
+                    </div>`;
+            } else {
+                mediaHtml = `
+                    <div class="message-image-wrapper">
+                        <img src="${src}"
+                             class="message-image"
+                             alt="${msg.file_name || 'Фото'}"
+                             onclick="window.open('${src}', '_blank')"
+                             onerror="this.parentElement.innerHTML='<span style=\\'color:var(--text-secondary);font-size:12px;\\'>Фото недоступно</span>'" />
+                    </div>`;
+            }
         }
 
         let reactionsHtml = '';
@@ -376,7 +388,7 @@ const ChatUI = {
                     ${forwardHtml}
                     ${isGroup && msg.sender ? `<div class="message-sender" onclick="App.showUserProfile(${msg.sender.id})">${senderName}</div>` : ''}
                     ${replyHtml}
-                    ${imageHtml}
+                    ${mediaHtml}
                     ${msg.text ? `<div class="message-text">${this.escapeHtml(msg.text)}</div>` : ''}
                     ${reactionsHtml}
                     <div class="message-meta">
@@ -433,7 +445,8 @@ const ChatUI = {
                     text: text || null,
                     reply_to_id: replyToId,
                     file_url: imageData ? imageData.file_url : null,
-                    file_name: imageData ? imageData.file_name : null
+                    file_name: imageData ? imageData.file_name : null,
+                    file_type: imageData ? imageData.file_type : null
                 });
             } else {
                 await API.messages.send(
@@ -441,7 +454,8 @@ const ChatUI = {
                     text || null,
                     replyToId,
                     imageData ? imageData.file_url : null,
-                    imageData ? imageData.file_name : null
+                    imageData ? imageData.file_name : null,
+                    imageData ? imageData.file_type : null
                 );
                 await this.silentRefresh();
             }
@@ -474,7 +488,7 @@ const ChatUI = {
         this.replyTo = msg;
         document.getElementById('reply-preview').style.display = 'flex';
         document.getElementById('reply-name').textContent = msg.sender.display_name;
-        document.getElementById('reply-text').textContent = msg.text || '';
+        document.getElementById('reply-text').textContent = msg.text || (msg.file_type === 'video' ? '🎥 Видео' : '🖼 Фото');
         document.getElementById('message-input').focus();
     },
 
@@ -491,25 +505,46 @@ const ChatUI = {
         const file = input.files[0];
         if (!file) return;
 
-        const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-        if (!allowed.includes(file.type)) {
+        const allowedImages = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+        const allowedVideos = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo'];
+        const isImage = allowedImages.includes(file.type);
+        const isVideo = allowedVideos.includes(file.type);
+
+        if (!isImage && !isVideo) {
             Toast.show('Формат не поддерживается', 'error');
             input.value = '';
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            document.getElementById('image-preview-img').src = e.target.result;
+        // Превью
+        if (isImage) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('image-preview-img').src = e.target.result;
+                document.getElementById('image-preview-img').style.display = 'block';
+                document.getElementById('image-preview-video').style.display = 'none';
+                document.getElementById('image-preview').style.display = 'flex';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            // Для видео показываем иконку и имя
+            const videoPreview = document.getElementById('image-preview-video');
+            const imgPreview = document.getElementById('image-preview-img');
+            imgPreview.style.display = 'none';
+            videoPreview.style.display = 'flex';
+            videoPreview.querySelector('.video-preview-name').textContent = file.name;
             document.getElementById('image-preview').style.display = 'flex';
-        };
-        reader.readAsDataURL(file);
+        }
 
         Toast.show('Загрузка...', 'info');
         try {
-            const data = await API.messages.uploadImage(file);
-            this.pendingImage = { file_url: data.file_url, file_name: data.file_name };
-            Toast.show('Готово к отправке ✓', 'success');
+            const data = await API.messages.uploadFile(file);
+            this.pendingImage = {
+                file_url: data.file_url,
+                file_name: data.file_name,
+                file_type: data.file_type  // 'image' или 'video'
+            };
+            Toast.show(`${isVideo ? 'Видео' : 'Фото'} готово к отправке ✓`, 'success');
         } catch (error) {
             Toast.show(error.error || 'Ошибка загрузки', 'error');
             this.cancelImage();
@@ -522,6 +557,9 @@ const ChatUI = {
         this.pendingImage = null;
         document.getElementById('image-preview').style.display = 'none';
         document.getElementById('image-preview-img').src = '';
+        document.getElementById('image-preview-img').style.display = 'none';
+        const vp = document.getElementById('image-preview-video');
+        if (vp) vp.style.display = 'none';
     },
 
     showReactions(event, messageId) {

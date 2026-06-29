@@ -8,11 +8,23 @@ from werkzeug.utils import secure_filename
 
 messages_bp = Blueprint('messages', __name__)
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'webm', 'ogg', 'mov', 'avi'}
+ALLOWED_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
+
+MAX_IMAGE_SIZE = 10 * 1024 * 1024   # 10MB
+MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100MB
+
+def get_file_type(filename):
+    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    if ext in ALLOWED_IMAGE_EXTENSIONS:
+        return 'image'
+    if ext in ALLOWED_VIDEO_EXTENSIONS:
+        return 'video'
+    return None
 
 def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return get_file_type(filename) is not None
 
 
 @messages_bp.route('/chat/<int:chat_id>', methods=['GET'])
@@ -76,6 +88,7 @@ def send_message(user):
     reply_to_id = data.get('reply_to_id')
     file_url = data.get('file_url')
     file_name = data.get('file_name')
+    file_type = data.get('file_type')  # 'image' или 'video'
 
     if not chat_id:
         return jsonify({'error': 'Укажите chat_id'}), 400
@@ -88,7 +101,11 @@ def send_message(user):
     if user not in chat.members:
         return jsonify({'error': 'Вы не участник чата'}), 403
 
-    msg_type = 'image' if file_url else 'text'
+    # Определяем тип сообщения
+    if file_url:
+        msg_type = file_type if file_type in ('image', 'video') else 'image'
+    else:
+        msg_type = 'text'
 
     message = Message(
         text=text if text else None,
@@ -103,29 +120,32 @@ def send_message(user):
     db.session.add(message)
     db.session.commit()
 
-    return jsonify({
-        'message': message.to_dict()
-    }), 201
+    return jsonify({'message': message.to_dict()}), 201
 
 
 @messages_bp.route('/upload', methods=['POST'])
 @login_required
 def upload_file(user):
-    if 'image' not in request.files:
+    if 'file' not in request.files:
         return jsonify({'error': 'Файл не найден'}), 400
 
-    file = request.files['image']
+    file = request.files['file']
     if not file or file.filename == '':
         return jsonify({'error': 'Файл не выбран'}), 400
 
-    if not allowed_file(file.filename):
-        return jsonify({'error': 'Формат не поддерживается (png, jpg, jpeg, gif, webp)'}), 400
+    file_type = get_file_type(file.filename)
+    if not file_type:
+        return jsonify({'error': 'Формат не поддерживается'}), 400
 
+    # Проверка размера
     file.seek(0, os.SEEK_END)
     size = file.tell()
     file.seek(0)
-    if size > 10 * 1024 * 1024:
-        return jsonify({'error': 'Файл слишком большой (макс 10MB)'}), 400
+
+    max_size = MAX_VIDEO_SIZE if file_type == 'video' else MAX_IMAGE_SIZE
+    if size > max_size:
+        limit = '100MB' if file_type == 'video' else '10MB'
+        return jsonify({'error': f'Файл слишком большой (макс {limit})'}), 400
 
     ext = file.filename.rsplit('.', 1)[1].lower()
     filename = f"{uuid.uuid4().hex}.{ext}"
@@ -138,7 +158,8 @@ def upload_file(user):
 
     return jsonify({
         'file_url': f'/uploads/{filename}',
-        'file_name': original_name
+        'file_name': original_name,
+        'file_type': file_type
     }), 200
 
 
@@ -168,9 +189,7 @@ def create_post(user, channel_id):
     db.session.add(message)
     db.session.commit()
 
-    return jsonify({
-        'message': message.to_dict()
-    }), 201
+    return jsonify({'message': message.to_dict()}), 201
 
 
 @messages_bp.route('/<int:message_id>/edit', methods=['PUT'])
@@ -321,9 +340,7 @@ def add_comment(user, message_id):
     db.session.add(comment)
     db.session.commit()
 
-    return jsonify({
-        'comment': comment.to_dict()
-    }), 201
+    return jsonify({'comment': comment.to_dict()}), 201
 
 
 @messages_bp.route('/comments/<int:comment_id>', methods=['DELETE'])
@@ -380,6 +397,4 @@ def forward_message(user, message_id):
     db.session.add(forwarded)
     db.session.commit()
 
-    return jsonify({
-        'message': forwarded.to_dict()
-    }), 201
+    return jsonify({'message': forwarded.to_dict()}), 201

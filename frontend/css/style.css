@@ -1504,3 +1504,35 @@ input::placeholder, textarea::placeholder {
         max-height: 200px;
     }
 }
+/* ========== ВИДЕО В СООБЩЕНИЯХ ========== */
+.message-video-wrapper {
+    margin: 4px 0;
+}
+
+.message-video {
+    max-width: 300px;
+    max-height: 220px;
+    width: 100%;
+    border-radius: 10px;
+    display: block;
+    background: #000;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    cursor: pointer;
+}
+
+.video-filename {
+    font-size: 11px;
+    color: var(--text-time);
+    margin-top: 4px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    max-width: 300px;
+}
+
+@media (max-width: 768px) {
+    .message-video {
+        max-width: 220px;
+        max-height: 160px;
+    }
+}
