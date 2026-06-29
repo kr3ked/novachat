@@ -442,6 +442,20 @@ const UI = {
         document.getElementById('profile-bio').value = user.bio || '';
         this.openModal('modal-profile');
     },
+    showDeleteAccount() {
+        const passwordInput = document.getElementById('delete-password');
+        const errorEl = document.getElementById('delete-error');
+        const btn = document.getElementById('btn-confirm-delete');
+        
+        if (passwordInput) passwordInput.value = '';
+        if (errorEl) errorEl.textContent = '';
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash"></i> Удалить навсегда';
+        }
+        
+        this.openModal('modal-delete-account');
+    },
     showSearchUsers() { this.showNewChat(); },
     showSearchChannels() {
         this.switchTab('channels');
@@ -462,8 +476,15 @@ const UI = {
         ChatUI.currentChat = null;
         ChannelUI.currentChannel = null;
     },
-    openModal(id) { document.getElementById(id).classList.add('active'); },
-    closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    openModal(id) { 
+        const modal = document.getElementById(id);
+        if (modal) modal.classList.add('active');
+        else console.error('Modal not found:', id);
+    },
+    closeModal(id) { 
+        const modal = document.getElementById(id);
+        if (modal) modal.classList.remove('active');
+    }
 };
 
 const Toast = {
