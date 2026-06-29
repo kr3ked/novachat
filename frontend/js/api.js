@@ -1,5 +1,5 @@
 const API = {
-  BASE_URL: 'https://novachat-backend-55fr.onrender.com/api',
+    BASE_URL: 'https://novachat-backend-55fr.onrender.com/api',
     token: localStorage.getItem('novachat_token'),
 
     setToken(token) {
@@ -32,41 +32,33 @@ const API = {
             throw error;
         }
     },
-auth: {
-    async register(phone, password, displayName, username) {
-        return API.request('/auth/register', {
-            method: 'POST',
-            body: { phone, password, display_name: displayName, username }
-        });
+
+    auth: {
+        async register(phone, password, displayName, username) {
+            return API.request('/auth/register', {
+                method: 'POST',
+                body: { phone, password, display_name: displayName, username }
+            });
+        },
+        async login(phone, password) {
+            return API.request('/auth/login', {
+                method: 'POST',
+                body: { phone, password }
+            });
+        },
+        async logout() {
+            return API.request('/auth/logout', { method: 'POST' });
+        },
+        async check() {
+            return API.request('/auth/check');
+        },
+        async deleteAccount(password) {
+            return API.request('/auth/delete-account', {
+                method: 'POST',
+                body: { password }
+            });
+        }
     },
-    async login(phone, password) {
-        return API.request('/auth/login', {
-            method: 'POST',
-            body: { phone, password }
-        });
-    },
-    async logout() {
-        return API.request('/auth/logout', { method: 'POST' });
-    },
-    async check() {
-        return API.request('/auth/check');
-    },
-    async deleteAccount(password) {
-        return API.request('/auth/delete-account', {
-            method: 'POST',
-            body: { password }
-        });
-    }
-},
-    async check() {
-    return API.request('/auth/check');
-},
-async deleteAccount(password) {
-    return API.request('/auth/delete', {
-        method: 'DELETE',
-        body: { password }
-    });
-},
 
     users: {
         async getProfile() { return API.request('/users/me'); },
@@ -76,7 +68,8 @@ async deleteAccount(password) {
         async search(query) {
             return API.request(`/users/search?q=${encodeURIComponent(query)}`);
         },
-        async getUser(userId) { return API.request(`/users/${userId}`); }
+        async getUser(userId) { return API.request(`/users/${userId}`); },
+        async ping() { return API.request('/users/ping', { method: 'POST' }); }
     },
 
     chats: {

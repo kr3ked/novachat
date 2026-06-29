@@ -97,3 +97,13 @@ def get_user(current_user, user_id):
     if not user:
         return jsonify({'error': 'Пользователь не найден'}), 404
     return jsonify({'user': user.to_dict()}), 200
+
+
+@users_bp.route('/ping', methods=['POST'])
+@login_required
+def ping(user):
+    """Обновить статус активности пользователя"""
+    user.is_online = True
+    user.last_seen = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'status': 'ok'}), 200

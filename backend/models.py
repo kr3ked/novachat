@@ -82,8 +82,8 @@ class User(db.Model):
             'bio': self.bio,
             'avatar_url': self.avatar_url,
             'is_online': self.is_online,
-            'last_seen': self.last_seen.isoformat() if self.last_seen else None,
-            'created_at': self.created_at.isoformat()
+            'last_seen': self.last_seen.isoformat() + 'Z' if self.last_seen else None,
+            'created_at': self.created_at.isoformat() + 'Z'
         }
 
 
@@ -110,7 +110,7 @@ class Chat(db.Model):
             'name': self.name,
             'chat_type': self.chat_type,
             'avatar_url': self.avatar_url,
-            'created_at': self.created_at.isoformat(),
+            'created_at': self.created_at.isoformat() + 'Z',
             'members_count': len(self.members),
             'last_message': last_msg.to_dict() if last_msg else None
         }
@@ -155,7 +155,7 @@ class Channel(db.Model):
             'is_public': self.is_public,
             'owner_id': self.owner_id,
             'subscribers_count': len(self.subscribers),
-            'created_at': self.created_at.isoformat(),
+            'created_at': self.created_at.isoformat() + 'Z',
             'last_post': last_post.to_dict() if last_post else None
         }
 
@@ -220,8 +220,8 @@ class Message(db.Model):
             'file_name': self.file_name,
             'is_edited': self.is_edited,
             'is_deleted': self.is_deleted,
-            'created_at': self.created_at.isoformat(),
-            'edited_at': self.edited_at.isoformat() if self.edited_at else None,
+            'created_at': self.created_at.isoformat() + 'Z',
+            'edited_at': self.edited_at.isoformat() + 'Z' if self.edited_at else None,
             'likes_count': len(self.likes),
             'reactions': self.get_reactions_summary(),
             'comments_count': self.comments.count(),
@@ -262,5 +262,5 @@ class Comment(db.Model):
             'text': self.text,
             'message_id': self.message_id,
             'user': self.user.to_dict(),
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat() + 'Z'
         }

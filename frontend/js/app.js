@@ -18,6 +18,30 @@ const App = {
         this.loadChats();
         this.loadChannels();
         this.connectSocket();
+        this.startActivityPing();
+    },
+
+    startActivityPing() {
+        this.sendPing();
+        if (this._pingInterval) clearInterval(this._pingInterval);
+        this._pingInterval = setInterval(() => this.sendPing(), 30000);
+        
+        let lastActivity = Date.now();
+        const onActivity = () => {
+            const now = Date.now();
+            if (now - lastActivity > 30000) {
+                lastActivity = now;
+                this.sendPing();
+            }
+        };
+        document.addEventListener('click', onActivity);
+        document.addEventListener('keydown', onActivity);
+    },
+
+    async sendPing() {
+        try {
+            await API.users.ping();
+        } catch (e) {}
     },
 
     updateUserInfo() {
@@ -357,19 +381,7 @@ const App = {
                 statusEl.textContent = 'онлайн';
                 statusEl.className = 'profile-status-big online';
             } else {
-                const lastSeen = user.last_seen ? new Date(user.last_seen) : null;
-                if (lastSeen) {
-                    const now = new Date();
-                    const diff = Math.floor((now - lastSeen) / 1000 / 60);
-                    let statusText = 'был(а) недавно';
-                    if (diff < 5) statusText = 'был(а) только что';
-                    else if (diff < 60) statusText = `был(а) ${diff} мин. назад`;
-                    else if (diff < 1440) statusText = `был(а) ${Math.floor(diff/60)} ч. назад`;
-                    else statusText = `был(а) ${Math.floor(diff/1440)} дн. назад`;
-                    statusEl.textContent = statusText;
-                } else {
-                    statusEl.textContent = 'был(а) недавно';
-                }
+                statusEl.textContent = this.formatLastSeen(user.last_seen);
                 statusEl.className = 'profile-status-big';
             }
 
@@ -398,6 +410,42 @@ const App = {
         } catch (error) {
             Toast.show('Ошибка загрузки профиля', 'error');
         }
+    },
+
+    formatLastSeen(dateStr) {
+        if (!dateStr) return 'был(а) давно';
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return 'был(а) давно';
+        
+        const now = new Date();
+        const diff = Math.floor((now - date) / 1000);
+        
+        if (diff < 60) return 'был(а) только что';
+        if (diff < 300) return 'был(а) недавно';
+        
+        const minutes = Math.floor(diff / 60);
+        if (minutes < 60) return `был(а) ${minutes} мин. назад`;
+        
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `был(а) ${hours} ${this.pluralize(hours, 'час', 'часа', 'часов')} назад`;
+        
+        const days = Math.floor(hours / 24);
+        if (days < 7) return `был(а) ${days} ${this.pluralize(days, 'день', 'дня', 'дней')} назад`;
+        
+        return 'был(а) ' + date.toLocaleDateString(undefined, {
+            day: 'numeric',
+            month: 'long',
+            year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+        });
+    },
+
+    pluralize(n, one, few, many) {
+        const mod10 = n % 10;
+        const mod100 = n % 100;
+        if (mod100 >= 11 && mod100 <= 19) return many;
+        if (mod10 === 1) return one;
+        if (mod10 >= 2 && mod10 <= 4) return few;
+        return many;
     }
 };
 
