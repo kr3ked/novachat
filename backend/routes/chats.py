@@ -49,9 +49,13 @@ def create_private_chat(user):
     db.session.commit()
 
     from app import socketio
-    socketio.emit('chat_updated', {'chat_id': chat.id, 'new_chat': True}, room=f'user_{other_user_id}')
+    socketio.emit('chat_updated', {'chat_id': chat.id, 'new_chat': True},
+                  room=f'user_{other_user_id}')
 
-    return jsonify({'chat': chat.to_dict(current_user_id=user.id), 'existing': False}), 201
+    return jsonify({
+        'chat': chat.to_dict(current_user_id=user.id),
+        'existing': False
+    }), 201
 
 
 @chats_bp.route('/group', methods=['POST'])
@@ -64,7 +68,12 @@ def create_group_chat(user):
     if not name or len(name) < 2:
         return jsonify({'error': 'Название минимум 2 символа'}), 400
 
-    chat = Chat(name=name, chat_type='group', created_by=user.id, avatar_url=data.get('avatar_url', ''))
+    chat = Chat(
+        name=name,
+        chat_type='group',
+        created_by=user.id,
+        avatar_url=data.get('avatar_url', '')
+    )
     chat.members.append(user)
 
     for uid in member_ids:
@@ -77,14 +86,18 @@ def create_group_chat(user):
 
     db.session.execute(
         chat_members.update().where(
-            db.and_(chat_members.c.chat_id == chat.id, chat_members.c.user_id == user.id)
+            db.and_(
+                chat_members.c.chat_id == chat.id,
+                chat_members.c.user_id == user.id
+            )
         ).values(role='owner')
     )
     db.session.commit()
 
     from app import socketio
     for member in chat.members:
-        socketio.emit('chat_updated', {'chat_id': chat.id, 'new_chat': True}, room=f'user_{member.id}')
+        socketio.emit('chat_updated', {'chat_id': chat.id, 'new_chat': True},
+                      room=f'user_{member.id}')
 
     return jsonify({'chat': chat.to_dict(current_user_id=user.id)}), 201
 
@@ -124,9 +137,61 @@ def add_member(user, chat_id):
     db.session.commit()
 
     from app import socketio
-    socketio.emit('chat_updated', {'chat_id': chat_id, 'new_chat': True}, room=f'user_{new_member.id}')
+    socketio.emit('chat_updated', {'chat_id': chat_id, 'new_chat': True},
+                  room=f'user_{new_member.id}')
 
     return jsonify({'message': 'Участник добавлен'}), 200
+
+
+@chats_bp.route('/<int:chat_id>/members/<int:target_user_id>/kick', methods=['DELETE'])
+@login_required
+def kick_member(user, chat_id, target_user_id):
+    """Выгнать участника из группы (только создатель/владелец)"""
+    chat = Chat.query.get(chat_id)
+    if not chat:
+        return jsonify({'error': 'Чат не найден'}), 404
+    if chat.chat_type != 'group':
+        return jsonify({'error': 'Только для групп'}), 400
+    if user not in chat.members:
+        return jsonify({'error': 'Вы не участник'}), 403
+
+    # Проверяем что текущий пользователь — создатель или владелец
+    member_role = db.session.execute(
+        chat_members.select().where(
+            db.and_(
+                chat_members.c.chat_id == chat_id,
+                chat_members.c.user_id == user.id
+            )
+        )
+    ).first()
+
+    is_owner = (chat.created_by == user.id) or \
+               (member_role and member_role.role == 'owner')
+
+    if not is_owner:
+        return jsonify({'error': 'Нет прав. Только владелец может выгонять участников'}), 403
+
+    # Нельзя выгнать самого себя этим методом
+    if target_user_id == user.id:
+        return jsonify({'error': 'Нельзя выгнать самого себя'}), 400
+
+    target_user = User.query.get(target_user_id)
+    if not target_user:
+        return jsonify({'error': 'Пользователь не найден'}), 404
+    if target_user not in chat.members:
+        return jsonify({'error': 'Пользователь не в группе'}), 404
+
+    chat.members.remove(target_user)
+    db.session.commit()
+
+    # Уведомляем выгнанного пользователя
+    from app import socketio
+    socketio.emit('kicked_from_chat', {
+        'chat_id': chat_id,
+        'chat_name': chat.name
+    }, room=f'user_{target_user_id}')
+
+    return jsonify({'message': f'{target_user.display_name} выгнан из группы'}), 200
 
 
 @chats_bp.route('/<int:chat_id>/leave', methods=['POST'])
@@ -152,7 +217,6 @@ def delete_chat(user, chat_id):
 
     try:
         if chat.chat_type == 'private':
-            # Используем сырой SQL — надёжнее с SQLite и PostgreSQL
             db.session.execute(text("""
                 DELETE FROM message_likes
                 WHERE message_id IN (SELECT id FROM messages WHERE chat_id = :cid)
@@ -179,7 +243,6 @@ def delete_chat(user, chat_id):
             return jsonify({'message': 'Чат удалён', 'deleted': True}), 200
 
         else:
-            # Группа — просто выходим
             chat.members.remove(user)
             db.session.commit()
             return jsonify({'message': 'Вы покинули группу', 'deleted': False}), 200
