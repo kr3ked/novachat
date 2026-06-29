@@ -6,12 +6,21 @@ const ChatUI = {
     activeCommentMessageId: null,
     forwardMessageId: null,
     pendingImage: null,
+    currentPage: 1,
+    totalPages: 1,
+    isLoadingMore: false,
 
     async openChat(chatId) {
         try {
             const chatData = await API.chats.getChat(chatId);
             this.currentChat = chatData.chat;
             this.currentChat.members_list = chatData.members;
+
+            // Сбрасываем пагинацию при открытии нового чата
+            this.currentPage = 1;
+            this.totalPages = 1;
+            this.isLoadingMore = false;
+            this.currentMessages = [];
 
             document.getElementById('empty-chat').style.display = 'none';
             document.getElementById('channel-view').style.display = 'none';
@@ -20,18 +29,21 @@ const ChatUI = {
 
             const chat = this.currentChat;
             document.getElementById('chat-name').textContent = chat.name || 'Чат';
-            
+
             if (chat.other_user) {
                 const status = chat.other_user.is_online ? 'онлайн' : 'был(а) недавно';
                 document.getElementById('chat-status').textContent = status;
-                document.getElementById('chat-status').className = 
+                document.getElementById('chat-status').className =
                     'chat-header-status' + (chat.other_user.is_online ? ' online' : '');
             } else {
-                document.getElementById('chat-status').textContent = 
+                document.getElementById('chat-status').textContent =
                     `${chat.members_count} участников`;
             }
 
-            await this.loadMessages(chatId);
+            await this.loadMessages(chatId, 1);
+
+            // Вешаем слушатель скролла
+            this.initScrollListener();
 
             if (App.socket) App.socket.emit('join_chat', { chat_id: chatId });
 
@@ -46,14 +58,146 @@ const ChatUI = {
         }
     },
 
+    initScrollListener() {
+        const area = document.getElementById('messages-area');
+
+        // Удаляем старый слушатель чтобы не дублировался
+        area.removeEventListener('scroll', this._scrollHandler);
+
+        this._scrollHandler = async () => {
+            // Если проскроллили к самому верху
+            if (area.scrollTop <= 50) {
+                await this.loadMoreMessages();
+            }
+        };
+
+        area.addEventListener('scroll', this._scrollHandler);
+    },
+
     async loadMessages(chatId, page = 1) {
         try {
             const data = await API.messages.getChatMessages(chatId, page);
+            this.currentPage = page;
+            this.totalPages = data.pages;
             this.currentMessages = data.messages;
             this.renderMessages(data.messages);
         } catch (error) {
             console.error('Error loading messages:', error);
         }
+    },
+
+    async loadMoreMessages() {
+        // Если уже грузим или все страницы загружены — выходим
+        if (this.isLoadingMore) return;
+        if (this.currentPage >= this.totalPages) return;
+        if (!this.currentChat) return;
+
+        this.isLoadingMore = true;
+
+        const area = document.getElementById('messages-area');
+        const container = document.getElementById('messages-container');
+
+        // Запоминаем высоту до добавления сообщений
+        const oldScrollHeight = area.scrollHeight;
+
+        // Показываем индикатор загрузки вверху
+        this.showLoadingIndicator();
+
+        try {
+            const nextPage = this.currentPage + 1;
+            const data = await API.messages.getChatMessages(this.currentChat.id, nextPage);
+
+            this.currentPage = nextPage;
+            this.totalPages = data.pages;
+
+            // Убираем индикатор
+            this.hideLoadingIndicator();
+
+            if (data.messages.length === 0) {
+                this.isLoadingMore = false;
+                return;
+            }
+
+            // Добавляем старые сообщения в начало массива
+            this.currentMessages = [...data.messages, ...this.currentMessages];
+
+            // Рендерим только новые (старые) сообщения и вставляем вверху
+            this.prependMessages(data.messages);
+
+            // Восстанавливаем позицию скролла чтобы не прыгало
+            const newScrollHeight = area.scrollHeight;
+            area.scrollTop = newScrollHeight - oldScrollHeight;
+
+        } catch (error) {
+            this.hideLoadingIndicator();
+            console.error('Error loading more messages:', error);
+        }
+
+        this.isLoadingMore = false;
+    },
+
+    showLoadingIndicator() {
+        const container = document.getElementById('messages-container');
+        // Проверяем чтобы не дублировать
+        if (container.querySelector('.loading-more')) return;
+
+        const indicator = document.createElement('div');
+        indicator.className = 'loading-more';
+        indicator.innerHTML = `
+            <div class="loading-more-inner">
+                <div class="typing-dots">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>`;
+        container.insertBefore(indicator, container.firstChild);
+    },
+
+    hideLoadingIndicator() {
+        const indicator = document.querySelector('.loading-more');
+        if (indicator) indicator.remove();
+    },
+
+    prependMessages(messages) {
+        const container = document.getElementById('messages-container');
+        const userId = Auth.currentUser.id;
+
+        let html = '';
+        let lastDate = '';
+
+        messages.forEach(msg => {
+            const msgDate = new Date(msg.created_at).toLocaleDateString('ru-RU');
+            if (msgDate !== lastDate) {
+                html += `<div class="date-separator"><span>${this.formatDate(msg.created_at)}</span></div>`;
+                lastDate = msgDate;
+            }
+            const isOutgoing = msg.sender && msg.sender.id === userId;
+            html += this.renderMessage(msg, isOutgoing);
+        });
+
+        // Вставляем в начало контейнера
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+
+        // Вставляем все элементы перед первым дочерним элементом
+        const firstChild = container.firstChild;
+        while (temp.firstChild) {
+            container.insertBefore(temp.firstChild, firstChild);
+        }
+
+        // Если достигли последней страницы — показываем метку
+        if (this.currentPage >= this.totalPages) {
+            this.showEndOfHistory();
+        }
+    },
+
+    showEndOfHistory() {
+        const container = document.getElementById('messages-container');
+        if (container.querySelector('.end-of-history')) return;
+
+        const label = document.createElement('div');
+        label.className = 'end-of-history';
+        label.innerHTML = `<span>Начало переписки</span>`;
+        container.insertBefore(label, container.firstChild);
     },
 
     renderMessages(messages) {
@@ -78,10 +222,14 @@ const ChatUI = {
                 html += `<div class="date-separator"><span>${this.formatDate(msg.created_at)}</span></div>`;
                 lastDate = msgDate;
             }
-
             const isOutgoing = msg.sender && msg.sender.id === userId;
             html += this.renderMessage(msg, isOutgoing);
         });
+
+        // Если это первая и последняя страница — показываем начало истории
+        if (this.totalPages <= 1) {
+            html = `<div class="end-of-history"><span>Начало переписки</span></div>` + html;
+        }
 
         container.innerHTML = html;
         this.scrollToBottom();
@@ -112,8 +260,8 @@ const ChatUI = {
 
         let forwardHtml = '';
         if (msg.forwarded_from) {
-            const fwdName = msg.forwarded_from.original_sender 
-                ? msg.forwarded_from.original_sender.display_name 
+            const fwdName = msg.forwarded_from.original_sender
+                ? msg.forwarded_from.original_sender.display_name
                 : 'Неизвестный';
             forwardHtml = `
                 <div class="message-forwarded">
@@ -127,8 +275,8 @@ const ChatUI = {
             const src = msg.file_url.startsWith('http') ? msg.file_url : backendBase + msg.file_url;
             imageHtml = `
                 <div class="message-image-wrapper">
-                    <img src="${src}" 
-                         class="message-image" 
+                    <img src="${src}"
+                         class="message-image"
                          alt="${msg.file_name || 'Фото'}"
                          onclick="window.open('${src}', '_blank')"
                          onerror="this.parentElement.innerHTML='<span style=\\'color:var(--text-secondary);font-size:12px;\\'>Фото недоступно</span>'" />
@@ -214,8 +362,8 @@ const ChatUI = {
                 });
             } else {
                 await API.messages.send(
-                    this.currentChat.id, 
-                    text || null, 
+                    this.currentChat.id,
+                    text || null,
                     replyToId,
                     imageData ? imageData.file_url : null,
                     imageData ? imageData.file_name : null
@@ -451,9 +599,8 @@ const ChatUI = {
 
     appendMessage(msg) {
         if (!this.currentChat || msg.chat_id !== this.currentChat.id) return;
-        
         if (this.currentMessages.find(m => m.id === msg.id)) return;
-        
+
         this.currentMessages.push(msg);
         const container = document.getElementById('messages-container');
         const isOutgoing = msg.sender && msg.sender.id === Auth.currentUser.id;
