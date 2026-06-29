@@ -65,6 +65,20 @@ const API = {
         async updateProfile(data) {
             return API.request('/users/me', { method: 'PUT', body: data });
         },
+        async uploadAvatar(file) {
+            const formData = new FormData();
+            formData.append('avatar', file);
+
+            const response = await fetch(`${API.BASE_URL}/users/me/avatar`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${API.token}` },
+                body: formData
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw data;
+            return data;
+        },
         async search(query) {
             return API.request(`/users/search?q=${encodeURIComponent(query)}`);
         },

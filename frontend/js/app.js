@@ -25,7 +25,7 @@ const App = {
         this.sendPing();
         if (this._pingInterval) clearInterval(this._pingInterval);
         this._pingInterval = setInterval(() => this.sendPing(), 30000);
-        
+
         let lastActivity = Date.now();
         const onActivity = () => {
             const now = Date.now();
@@ -39,9 +39,7 @@ const App = {
     },
 
     async sendPing() {
-        try {
-            await API.users.ping();
-        } catch (e) {}
+        try { await API.users.ping(); } catch (e) {}
     },
 
     updateUserInfo() {
@@ -50,12 +48,24 @@ const App = {
         document.getElementById('menu-username').textContent = user.display_name;
         document.getElementById('menu-phone').textContent = user.phone;
         const avatarEl = document.getElementById('menu-avatar');
-        avatarEl.innerHTML = this.getAvatarContent(user);
+        avatarEl.innerHTML = this.getAvatarHtml(user, 'avatar-lg');
     },
 
-    getAvatarContent(user) {
-        if (user.avatar_url) return `<img src="${user.avatar_url}" alt="">`;
+    // Возвращает HTML аватара с правильным базовым URL
+    getAvatarHtml(user, extraClass = '') {
+        const backendBase = 'https://novachat-backend-55fr.onrender.com';
+        if (user.avatar_url) {
+            const src = user.avatar_url.startsWith('http')
+                ? user.avatar_url
+                : backendBase + user.avatar_url;
+            return `<img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        }
         return user.display_name.charAt(0).toUpperCase();
+    },
+
+    // Устаревший метод — оставляем для совместимости
+    getAvatarContent(user) {
+        return this.getAvatarHtml(user);
     },
 
     connectSocket() {
@@ -102,6 +112,8 @@ const App = {
 
     renderChatList(chats) {
         const list = document.getElementById('chat-list');
+        const backendBase = 'https://novachat-backend-55fr.onrender.com';
+
         if (chats.length === 0) {
             list.innerHTML = `
                 <div class="empty-state">
@@ -111,16 +123,25 @@ const App = {
                 </div>`;
             return;
         }
+
         list.innerHTML = chats.map(chat => {
             const isActive = ChatUI.currentChat && ChatUI.currentChat.id === chat.id;
             const icon = chat.chat_type === 'group' ? 'fa-users' : 'fa-user';
-            const preview = chat.last_message 
-                ? (chat.last_message.text || 'Медиа').substring(0, 40) 
+            const preview = chat.last_message
+                ? (chat.last_message.text || (chat.last_message.message_type === 'video' ? '🎥 Видео' : '🖼 Фото')).substring(0, 40)
                 : 'Нет сообщений';
             const time = chat.last_message ? ChatUI.formatTime(chat.last_message.created_at) : '';
-            const avatarContent = chat.avatar_url 
-                ? `<img src="${chat.avatar_url}" alt="">` 
-                : (chat.name ? chat.name.charAt(0).toUpperCase() : `<i class="fas ${icon}"></i>`);
+
+            let avatarContent;
+            if (chat.avatar_url) {
+                const src = chat.avatar_url.startsWith('http') ? chat.avatar_url : backendBase + chat.avatar_url;
+                avatarContent = `<img src="${src}" alt="">`;
+            } else {
+                avatarContent = chat.name
+                    ? chat.name.charAt(0).toUpperCase()
+                    : `<i class="fas ${icon}"></i>`;
+            }
+
             return `
                 <div class="chat-item ${isActive ? 'active' : ''}" data-chat-id="${chat.id}" onclick="ChatUI.openChat(${chat.id})">
                     <div class="avatar">${avatarContent}</div>
@@ -156,8 +177,8 @@ const App = {
             return;
         }
         list.innerHTML = channels.map(ch => {
-            const avatarContent = ch.avatar_url 
-                ? `<img src="${ch.avatar_url}" alt="">` 
+            const avatarContent = ch.avatar_url
+                ? `<img src="${ch.avatar_url}" alt="">`
                 : ch.name.charAt(0).toUpperCase();
             const preview = ch.last_post ? (ch.last_post.text || '').substring(0, 40) : 'Нет постов';
             const time = ch.last_post ? ChatUI.formatTime(ch.last_post.created_at) : '';
@@ -203,7 +224,7 @@ const App = {
                 html += '<div style="padding:8px 12px;font-size:12px;color:var(--text-secondary);font-weight:600;">ПОЛЬЗОВАТЕЛИ</div>';
                 html += usersData.users.map(u => `
                     <div class="chat-item" onclick="App.startChatWith(${u.id})">
-                        <div class="avatar">${App.getAvatarContent(u)}</div>
+                        <div class="avatar">${App.getAvatarHtml(u)}</div>
                         <div class="chat-item-info">
                             <div class="chat-item-name">${u.display_name}</div>
                             <div class="chat-item-preview">@${u.username || u.phone}</div>
@@ -251,7 +272,7 @@ const App = {
             const data = await API.users.search(query);
             list.innerHTML = data.users.map(u => `
                 <div class="user-item" onclick="App.startChatWith(${u.id})">
-                    <div class="avatar avatar-sm">${App.getAvatarContent(u)}</div>
+                    <div class="avatar avatar-sm">${App.getAvatarHtml(u)}</div>
                     <div>
                         <div class="user-item-name">${u.display_name}</div>
                         <div class="user-item-username">${u.username ? '@' + u.username : u.phone}</div>
@@ -271,7 +292,7 @@ const App = {
                 const isSelected = this.selectedGroupMembers.includes(u.id);
                 return `
                     <div class="user-item" onclick="App.toggleGroupMember(${u.id}, '${u.display_name}')">
-                        <div class="avatar avatar-sm">${App.getAvatarContent(u)}</div>
+                        <div class="avatar avatar-sm">${App.getAvatarHtml(u)}</div>
                         <div>
                             <div class="user-item-name">${u.display_name}</div>
                             <div class="user-item-username">${u.username ? '@' + u.username : u.phone}</div>
@@ -292,17 +313,14 @@ const App = {
         const container = document.getElementById('selected-members');
         const searchVal = document.getElementById('group-member-search').value;
         this.searchUsersForGroup(searchVal);
-        container.innerHTML = this.selectedGroupMembers.length > 0 
-            ? `<span class="selected-member">${this.selectedGroupMembers.length} выбрано</span>` 
+        container.innerHTML = this.selectedGroupMembers.length > 0
+            ? `<span class="selected-member">${this.selectedGroupMembers.length} выбрано</span>`
             : '';
     },
 
     async createGroup() {
         const name = document.getElementById('group-name').value.trim();
-        if (!name) {
-            Toast.show('Введите название группы', 'error');
-            return;
-        }
+        if (!name) { Toast.show('Введите название группы', 'error'); return; }
         try {
             const data = await API.chats.createGroup(name, this.selectedGroupMembers);
             this.selectedGroupMembers = [];
@@ -319,10 +337,7 @@ const App = {
         const name = document.getElementById('channel-create-name').value.trim();
         const handle = document.getElementById('channel-create-handle').value.trim();
         const desc = document.getElementById('channel-create-desc').value.trim();
-        if (!name || !handle) {
-            Toast.show('Заполните обязательные поля', 'error');
-            return;
-        }
+        if (!name || !handle) { Toast.show('Заполните обязательные поля', 'error'); return; }
         try {
             const data = await API.channels.create(name, handle, desc);
             UI.closeModal('modal-new-channel');
@@ -354,16 +369,63 @@ const App = {
         }
     },
 
+    // Загрузка аватарки
+    async uploadAvatar(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+        if (!allowed.includes(file.type)) {
+            Toast.show('Формат не поддерживается', 'error');
+            input.value = '';
+            return;
+        }
+
+        // Показываем превью сразу
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const avatarEl = document.getElementById('profile-avatar-preview');
+            avatarEl.innerHTML = `<img src="${e.target.result}" alt="">`;
+        };
+        reader.readAsDataURL(file);
+
+        Toast.show('Загрузка аватарки...', 'info');
+        try {
+            const data = await API.users.uploadAvatar(file);
+
+            // Обновляем данные пользователя
+            Auth.currentUser = data.user;
+            localStorage.setItem('novachat_user', JSON.stringify(data.user));
+
+            // Обновляем аватар в шапке меню
+            this.updateUserInfo();
+
+            // Обновляем аватар в модале профиля
+            const backendBase = 'https://novachat-backend-55fr.onrender.com';
+            const src = data.avatar_url.startsWith('http') ? data.avatar_url : backendBase + data.avatar_url;
+            document.getElementById('profile-avatar-preview').innerHTML =
+                `<img src="${src}" alt="">`;
+
+            Toast.show('Аватарка обновлена! ✓', 'success');
+        } catch (error) {
+            Toast.show(error.error || 'Ошибка загрузки', 'error');
+        }
+
+        input.value = '';
+    },
+
     async showUserProfile(userId) {
         try {
             const data = await API.users.getUser(userId);
             const user = data.user;
+            const backendBase = 'https://novachat-backend-55fr.onrender.com';
 
             const avatarEl = document.getElementById('view-profile-avatar');
             if (user.avatar_url) {
-                avatarEl.innerHTML = `<img src="${user.avatar_url}" alt="">`;
+                const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
+                avatarEl.innerHTML = `<img src="${src}" alt="">`;
             } else {
-                avatarEl.innerHTML = user.display_name.charAt(0).toUpperCase();
+                avatarEl.textContent = user.display_name.charAt(0).toUpperCase();
             }
 
             document.getElementById('view-profile-name').textContent = user.display_name;
@@ -416,32 +478,24 @@ const App = {
         if (!dateStr) return 'был(а) давно';
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return 'был(а) давно';
-        
         const now = new Date();
         const diff = Math.floor((now - date) / 1000);
-        
         if (diff < 60) return 'был(а) только что';
         if (diff < 300) return 'был(а) недавно';
-        
         const minutes = Math.floor(diff / 60);
         if (minutes < 60) return `был(а) ${minutes} мин. назад`;
-        
         const hours = Math.floor(minutes / 60);
         if (hours < 24) return `был(а) ${hours} ${this.pluralize(hours, 'час', 'часа', 'часов')} назад`;
-        
         const days = Math.floor(hours / 24);
         if (days < 7) return `был(а) ${days} ${this.pluralize(days, 'день', 'дня', 'дней')} назад`;
-        
         return 'был(а) ' + date.toLocaleDateString(undefined, {
-            day: 'numeric',
-            month: 'long',
+            day: 'numeric', month: 'long',
             year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
         });
     },
 
     pluralize(n, one, few, many) {
-        const mod10 = n % 10;
-        const mod100 = n % 100;
+        const mod10 = n % 10, mod100 = n % 100;
         if (mod100 >= 11 && mod100 <= 19) return many;
         if (mod10 === 1) return one;
         if (mod10 >= 2 && mod10 <= 4) return few;
@@ -485,23 +539,33 @@ const UI = {
     showProfile() {
         this.toggleMenu();
         const user = Auth.currentUser;
+        const backendBase = 'https://novachat-backend-55fr.onrender.com';
+
         document.getElementById('profile-name').value = user.display_name || '';
         document.getElementById('profile-username').value = user.username || '';
         document.getElementById('profile-bio').value = user.bio || '';
+
+        // Показываем текущую аватарку
+        const avatarEl = document.getElementById('profile-avatar-preview');
+        if (user.avatar_url) {
+            const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
+            avatarEl.innerHTML = `<img src="${src}" alt="">`;
+        } else {
+            avatarEl.innerHTML = `<span>${user.display_name.charAt(0).toUpperCase()}</span>`;
+        }
+
         this.openModal('modal-profile');
     },
     showDeleteAccount() {
         const passwordInput = document.getElementById('delete-password');
         const errorEl = document.getElementById('delete-error');
         const btn = document.getElementById('btn-confirm-delete');
-        
         if (passwordInput) passwordInput.value = '';
         if (errorEl) errorEl.textContent = '';
         if (btn) {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-trash"></i> Удалить навсегда';
         }
-        
         this.openModal('modal-delete-account');
     },
     showSearchUsers() { this.showNewChat(); },
@@ -524,12 +588,12 @@ const UI = {
         ChatUI.currentChat = null;
         ChannelUI.currentChannel = null;
     },
-    openModal(id) { 
+    openModal(id) {
         const modal = document.getElementById(id);
         if (modal) modal.classList.add('active');
         else console.error('Modal not found:', id);
     },
-    closeModal(id) { 
+    closeModal(id) {
         const modal = document.getElementById(id);
         if (modal) modal.classList.remove('active');
     }
