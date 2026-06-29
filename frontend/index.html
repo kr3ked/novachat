@@ -6,11 +6,34 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#1e2030">
+    <meta name="theme-color" content="#5865f2">
+    <meta name="description" content="NovaChat — мессенджер нового поколения">
+
     <title>NovaChat</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Иконки для iOS -->
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
+
+    <!-- Стили -->
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('✅ Service Worker зарегистрирован'))
+                    .catch(err => console.log('❌ SW ошибка:', err));
+            });
+        }
+    </script>
 </head>
 <body>
 <div id="app">
@@ -235,8 +258,9 @@
                              style="display:none; max-height:72px; max-width:120px;
                                     border-radius:8px; object-fit:cover;"/>
                         <div id="image-preview-video" style="display:none; align-items:center; gap:10px;">
-                            <div style="width:48px;height:48px;border-radius:8px;background:var(--bg-active);
-                                        display:flex;align-items:center;justify-content:center;">
+                            <div style="width:48px;height:48px;border-radius:8px;
+                                        background:var(--bg-active);display:flex;
+                                        align-items:center;justify-content:center;">
                                 <i class="fas fa-film" style="font-size:20px;color:var(--accent);"></i>
                             </div>
                             <span class="video-preview-name"
@@ -262,7 +286,7 @@
                         </button>
                     </div>
 
-                    <!-- Поле ввода сообщения -->
+                    <!-- Поле ввода -->
                     <div class="message-input-area">
                         <input type="file" id="image-input"
                                accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime"
@@ -297,7 +321,8 @@
                             </div>
                         </div>
                         <div class="chat-header-actions">
-                            <button class="btn-icon" id="btn-subscribe" onclick="ChannelUI.toggleSubscribe()">
+                            <button class="btn-icon" id="btn-subscribe"
+                                    onclick="ChannelUI.toggleSubscribe()">
                                 <i class="fas fa-bell"></i>
                             </button>
                             <button class="btn-icon" id="btn-edit-channel"
@@ -323,25 +348,29 @@
                         <!-- Превью файла для канала -->
                         <div id="channel-file-preview"
                              style="display:none; align-items:center; gap:10px; padding:8px 12px;
-                                    background:var(--bg-secondary); border-top:1px solid var(--border); width:100%;">
+                                    background:var(--bg-secondary); border-top:1px solid var(--border);
+                                    width:100%;">
                             <img id="channel-preview-img" src=""
                                  style="display:none; max-height:60px; max-width:100px;
                                         border-radius:8px; object-fit:cover;"/>
                             <div id="channel-preview-video"
                                  style="display:none; align-items:center; gap:8px;">
-                                <div style="width:40px;height:40px;border-radius:8px;background:var(--bg-active);
-                                            display:flex;align-items:center;justify-content:center;">
+                                <div style="width:40px;height:40px;border-radius:8px;
+                                            background:var(--bg-active);display:flex;
+                                            align-items:center;justify-content:center;">
                                     <i class="fas fa-film"
                                        style="font-size:16px;color:var(--accent);"></i>
                                 </div>
                                 <span class="video-preview-name"
-                                      style="font-size:12px;color:var(--text-secondary);max-width:120px;
-                                             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                                      style="font-size:12px;color:var(--text-secondary);
+                                             max-width:120px;overflow:hidden;
+                                             text-overflow:ellipsis;white-space:nowrap;"></span>
                             </div>
                             <span style="font-size:12px;color:var(--text-secondary);flex:1;">
                                 Готово к публикации
                             </span>
-                            <button class="btn-icon" onclick="ChannelUI.cancelChannelFile()" type="button">
+                            <button class="btn-icon" onclick="ChannelUI.cancelChannelFile()"
+                                    type="button">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
@@ -356,8 +385,8 @@
                                 <i class="fas fa-paperclip"></i>
                             </button>
                             <div class="message-input-wrapper">
-                                <textarea id="channel-post-input" placeholder="Новый пост..." rows="1"
-                                          oninput="ChatUI.autoResize(this)"></textarea>
+                                <textarea id="channel-post-input" placeholder="Новый пост..."
+                                          rows="1" oninput="ChatUI.autoResize(this)"></textarea>
                             </div>
                             <button class="btn-icon btn-send" onclick="ChannelUI.createPost()">
                                 <i class="fas fa-paper-plane"></i>
@@ -504,7 +533,8 @@
                     <div class="profile-name-big" id="view-profile-name">Имя</div>
                     <div class="profile-username-big" id="view-profile-username">@username</div>
                     <div class="profile-status-big" id="view-profile-status">был(а) недавно</div>
-                    <div class="profile-info-section" id="view-profile-bio-section" style="display:none;">
+                    <div class="profile-info-section" id="view-profile-bio-section"
+                         style="display:none;">
                         <div class="profile-info-label">О себе</div>
                         <div class="profile-info-text" id="view-profile-bio"></div>
                     </div>
@@ -532,6 +562,7 @@
                 </button>
             </div>
             <div class="modal-body">
+
                 <!-- Аватарка -->
                 <div class="profile-avatar-section">
                     <input type="file" id="avatar-input"
@@ -550,7 +581,7 @@
                     <p class="avatar-hint">Нажмите на фото чтобы изменить</p>
                 </div>
 
-                <!-- Поля профиля -->
+                <!-- Поля -->
                 <div class="form-group">
                     <label>Имя</label>
                     <input type="text" id="profile-name">
@@ -666,12 +697,14 @@
                     <div class="profile-name-big" id="channel-info-name">Канал</div>
                     <div class="profile-username-big" id="channel-info-handle">@handle</div>
                     <div class="profile-status-big" id="channel-info-subs">0 подписчиков</div>
-                    <div class="profile-info-section" id="channel-info-desc-section" style="display:none;">
+                    <div class="profile-info-section" id="channel-info-desc-section"
+                         style="display:none;">
                         <div class="profile-info-label">Описание</div>
                         <div class="profile-info-text" id="channel-info-desc"></div>
                     </div>
                     <div class="profile-actions"
-                         style="width:100%;margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+                         style="width:100%;margin-top:12px;display:flex;
+                                flex-direction:column;gap:8px;">
                         <button class="btn btn-primary btn-full"
                                 onclick="UI.closeModal('modal-channel-info'); ChannelUI.toggleSubscribe();">
                             <i class="fas fa-bell"></i> Подписка / Отписка
