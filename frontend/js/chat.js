@@ -35,8 +35,7 @@ const ChatUI = {
                 document.getElementById('chat-status').className =
                     'chat-header-status' + (chat.other_user.is_online ? ' online' : '');
             } else {
-                document.getElementById('chat-status').textContent =
-                    `${chat.members_count} участников`;
+                document.getElementById('chat-status').textContent = `${chat.members_count} участников`;
             }
 
             await this.initialLoad(chatId);
@@ -72,10 +71,8 @@ const ChatUI = {
         try {
             const area = document.getElementById('messages-area');
             const wasAtBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 60;
-
             const data = await API.messages.getChatMessages(this.currentChat.id, 1);
             const newMsgs = data.messages;
-
             if (this.currentMessages.length <= 50) {
                 this.currentMessages = newMsgs;
             } else {
@@ -84,7 +81,6 @@ const ChatUI = {
                     ...newMsgs
                 ];
             }
-
             this.rerenderAll();
             if (wasAtBottom) this.scrollToBottom();
         } catch (error) {
@@ -95,10 +91,8 @@ const ChatUI = {
     rerenderAll() {
         const container = document.getElementById('messages-container');
         const userId = Auth.currentUser.id;
-
         let html = '';
         let lastDate = '';
-
         this.currentMessages.forEach(msg => {
             const msgDate = new Date(msg.created_at).toLocaleDateString('ru-RU');
             if (msgDate !== lastDate) {
@@ -108,24 +102,20 @@ const ChatUI = {
             const isOutgoing = msg.sender && msg.sender.id === userId;
             html += this.renderMessage(msg, isOutgoing);
         });
-
         if (this.currentPage >= this.totalPages) {
             html = `<div class="end-of-history"><span>📜 Начало переписки</span></div>` + html;
         }
-
         container.innerHTML = `<div id="scroll-trigger" style="height:1px;width:100%;"></div>` + html;
     },
 
     initScrollListener() {
         const area = document.getElementById('messages-area');
-
         if (this._boundScrollHandler) {
             area.removeEventListener('scroll', this._boundScrollHandler);
         }
         if (this._observer) {
             this._observer.disconnect();
         }
-
         const container = document.getElementById('messages-container');
         let trigger = document.getElementById('scroll-trigger');
         if (!trigger) {
@@ -134,24 +124,17 @@ const ChatUI = {
             trigger.style.cssText = 'height: 1px; width: 100%;';
             container.insertBefore(trigger, container.firstChild);
         }
-
         this._observer = new IntersectionObserver(
             (entries) => {
                 entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        this.loadMoreMessages();
-                    }
+                    if (entry.isIntersecting) this.loadMoreMessages();
                 });
             },
             { root: area, threshold: 0.1 }
         );
-
         this._observer.observe(trigger);
-
         this._boundScrollHandler = () => {
-            if (area.scrollTop <= 100) {
-                this.loadMoreMessages();
-            }
+            if (area.scrollTop <= 100) this.loadMoreMessages();
         };
         area.addEventListener('scroll', this._boundScrollHandler, { passive: true });
     },
@@ -160,46 +143,31 @@ const ChatUI = {
         if (this.isLoadingMore) return;
         if (this.currentPage >= this.totalPages) return;
         if (!this.currentChat) return;
-
         this.isLoadingMore = true;
-
         const area = document.getElementById('messages-area');
         const scrollHeightBefore = area.scrollHeight;
-
         this.showLoadingIndicator();
-
         try {
             const nextPage = this.currentPage + 1;
             const data = await API.messages.getChatMessages(this.currentChat.id, nextPage);
-
             this.hideLoadingIndicator();
-
             if (!data.messages || data.messages.length === 0) {
                 this.isLoadingMore = false;
                 return;
             }
-
             this.currentPage = nextPage;
             this.totalPages = data.pages;
             this.currentMessages = [...data.messages, ...this.currentMessages];
-
             this.prependMessages(data.messages);
-
             requestAnimationFrame(() => {
                 const scrollHeightAfter = area.scrollHeight;
                 area.scrollTop = scrollHeightAfter - scrollHeightBefore;
             });
-
-            if (this.currentPage >= this.totalPages) {
-                this.showEndOfHistory();
-            }
-
+            if (this.currentPage >= this.totalPages) this.showEndOfHistory();
         } catch (error) {
             this.hideLoadingIndicator();
             console.error('Error loading more:', error);
-            Toast.show('Ошибка загрузки истории', 'error');
         }
-
         this.isLoadingMore = false;
     },
 
@@ -208,13 +176,7 @@ const ChatUI = {
         if (container.querySelector('.loading-more')) return;
         const el = document.createElement('div');
         el.className = 'loading-more';
-        el.innerHTML = `
-            <div class="loading-more-inner">
-                <div class="typing-dots">
-                    <span></span><span></span><span></span>
-                </div>
-                <span>Загрузка...</span>
-            </div>`;
+        el.innerHTML = `<div class="loading-more-inner"><div class="typing-dots"><span></span><span></span><span></span></div><span>Загрузка...</span></div>`;
         const trigger = document.getElementById('scroll-trigger');
         if (trigger && trigger.nextSibling) {
             container.insertBefore(el, trigger.nextSibling);
@@ -231,10 +193,8 @@ const ChatUI = {
     prependMessages(messages) {
         const container = document.getElementById('messages-container');
         const userId = Auth.currentUser.id;
-
         let html = '';
         let lastDate = '';
-
         messages.forEach(msg => {
             const msgDate = new Date(msg.created_at).toLocaleDateString('ru-RU');
             if (msgDate !== lastDate) {
@@ -244,17 +204,12 @@ const ChatUI = {
             const isOutgoing = msg.sender && msg.sender.id === userId;
             html += this.renderMessage(msg, isOutgoing);
         });
-
         const temp = document.createElement('div');
         temp.innerHTML = html;
-
         const trigger = document.getElementById('scroll-trigger');
         const anchor = trigger ? trigger.nextSibling : container.firstChild;
-
         const fragment = document.createDocumentFragment();
-        while (temp.firstChild) {
-            fragment.appendChild(temp.firstChild);
-        }
+        while (temp.firstChild) fragment.appendChild(temp.firstChild);
         container.insertBefore(fragment, anchor);
     },
 
@@ -287,7 +242,6 @@ const ChatUI = {
 
         let html = '';
         let lastDate = '';
-
         messages.forEach(msg => {
             const msgDate = new Date(msg.created_at).toLocaleDateString('ru-RU');
             if (msgDate !== lastDate) {
@@ -304,12 +258,54 @@ const ChatUI = {
 
         container.innerHTML = `<div id="scroll-trigger" style="height:1px;width:100%;"></div>` + html;
         this.scrollToBottom();
+
+        // Добавляем обработчики для сообщений
+        this.bindMessageEvents(container);
+    },
+
+    // Привязываем события к сообщениям (ПКМ и long press)
+    bindMessageEvents(container) {
+        container.querySelectorAll('.message[data-message-id]').forEach(el => {
+            const msgId = parseInt(el.dataset.messageId);
+            const isOutgoing = el.classList.contains('outgoing');
+
+            // ПКМ на компьютере
+            el.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                App.showMsgContextMenu(e, msgId, isOutgoing);
+            });
+
+            // Long press на мобильном
+            let longPressTimer = null;
+            el.addEventListener('touchstart', (e) => {
+                longPressTimer = setTimeout(() => {
+                    // Вибрация если поддерживается
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    App.showMsgContextMenu(null, msgId, isOutgoing);
+                }, 500);
+            }, { passive: true });
+
+            el.addEventListener('touchend', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            });
+
+            el.addEventListener('touchmove', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            });
+        });
     },
 
     renderMessage(msg, isOutgoing) {
         if (msg.is_deleted) {
             return `
-                <div class="message ${isOutgoing ? 'outgoing' : 'incoming'}">
+                <div class="message ${isOutgoing ? 'outgoing' : 'incoming'}" data-message-id="${msg.id}">
                     <div class="message-bubble" style="opacity: 0.5;">
                         <div class="message-text"><i>Сообщение удалено</i></div>
                     </div>
@@ -333,37 +329,31 @@ const ChatUI = {
         let forwardHtml = '';
         if (msg.forwarded_from) {
             const fwdName = msg.forwarded_from.original_sender
-                ? msg.forwarded_from.original_sender.display_name
-                : 'Неизвестный';
+                ? msg.forwarded_from.original_sender.display_name : 'Неизвестный';
             forwardHtml = `
                 <div class="message-forwarded">
                     <i class="fas fa-share"></i> Переслано от ${fwdName}
                 </div>`;
         }
 
-        // Медиа: фото или видео
         let mediaHtml = '';
         if (msg.file_url) {
             const src = msg.file_url.startsWith('http') ? msg.file_url : backendBase + msg.file_url;
             const isVideo = msg.message_type === 'video' ||
                 /\.(mp4|webm|ogg|mov|avi)$/i.test(msg.file_url);
-
             if (isVideo) {
                 mediaHtml = `
                     <div class="message-video-wrapper">
                         <video class="message-video" controls preload="metadata">
                             <source src="${src}" type="video/mp4">
                             <source src="${src}" type="video/webm">
-                            Ваш браузер не поддерживает видео.
                         </video>
                         <div class="video-filename">${msg.file_name || 'Видео'}</div>
                     </div>`;
             } else {
                 mediaHtml = `
                     <div class="message-image-wrapper">
-                        <img src="${src}"
-                             class="message-image"
-                             alt="${msg.file_name || 'Фото'}"
+                        <img src="${src}" class="message-image" alt="${msg.file_name || 'Фото'}"
                              onclick="window.open('${src}', '_blank')"
                              onerror="this.parentElement.innerHTML='<span style=\\'color:var(--text-secondary);font-size:12px;\\'>Фото недоступно</span>'" />
                     </div>`;
@@ -382,6 +372,7 @@ const ChatUI = {
             reactionsHtml += '</div>';
         }
 
+        // Убираем hover-кнопки — теперь только ПКМ / long press
         return `
             <div class="message ${isOutgoing ? 'outgoing' : 'incoming'}" data-message-id="${msg.id}">
                 <div class="message-bubble">
@@ -395,29 +386,6 @@ const ChatUI = {
                         ${msg.is_edited ? '<span class="message-edited">ред.</span>' : ''}
                         <span class="message-time">${time}</span>
                     </div>
-                    <div class="message-actions">
-                        <button class="message-action-btn" onclick="ChatUI.showReactions(event, ${msg.id})" title="Реакция">
-                            <i class="far fa-smile"></i>
-                        </button>
-                        <button class="message-action-btn" onclick="ChatUI.setReply(${msg.id})" title="Ответить">
-                            <i class="fas fa-reply"></i>
-                        </button>
-                        <button class="message-action-btn" onclick="ChatUI.showForward(${msg.id})" title="Переслать">
-                            <i class="fas fa-share"></i>
-                        </button>
-                        <button class="message-action-btn" onclick="ChatUI.showComments(${msg.id})" title="Комментарии">
-                            <i class="far fa-comment"></i>
-                            ${msg.comments_count > 0 ? `<span>${msg.comments_count}</span>` : ''}
-                        </button>
-                        ${isOutgoing ? `
-                            <button class="message-action-btn" onclick="ChatUI.editMessage(${msg.id})" title="Редактировать">
-                                <i class="fas fa-pen"></i>
-                            </button>
-                            <button class="message-action-btn" onclick="ChatUI.deleteMessage(${msg.id})" title="Удалить">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        ` : ''}
-                    </div>
                 </div>
             </div>`;
     },
@@ -425,7 +393,6 @@ const ChatUI = {
     async sendMessage() {
         const input = document.getElementById('message-input');
         const text = input.value.trim();
-
         if (!text && !this.pendingImage) return;
         if (!this.currentChat) return;
 
@@ -450,9 +417,7 @@ const ChatUI = {
                 });
             } else {
                 await API.messages.send(
-                    this.currentChat.id,
-                    text || null,
-                    replyToId,
+                    this.currentChat.id, text || null, replyToId,
                     imageData ? imageData.file_url : null,
                     imageData ? imageData.file_name : null,
                     imageData ? imageData.file_type : null
@@ -470,10 +435,7 @@ const ChatUI = {
             this.sendMessage();
         }
         if (App.socket && this.currentChat) {
-            App.socket.emit('typing', {
-                token: API.token,
-                chat_id: this.currentChat.id
-            });
+            App.socket.emit('typing', { token: API.token, chat_id: this.currentChat.id });
         }
     },
 
@@ -487,7 +449,7 @@ const ChatUI = {
         if (!msg) return;
         this.replyTo = msg;
         document.getElementById('reply-preview').style.display = 'flex';
-        document.getElementById('reply-name').textContent = msg.sender.display_name;
+        document.getElementById('reply-name').textContent = msg.sender ? msg.sender.display_name : '';
         document.getElementById('reply-text').textContent = msg.text || (msg.file_type === 'video' ? '🎥 Видео' : '🖼 Фото');
         document.getElementById('message-input').focus();
     },
@@ -504,19 +466,15 @@ const ChatUI = {
     async handleImageSelect(input) {
         const file = input.files[0];
         if (!file) return;
-
         const allowedImages = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
         const allowedVideos = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo'];
         const isImage = allowedImages.includes(file.type);
         const isVideo = allowedVideos.includes(file.type);
-
         if (!isImage && !isVideo) {
             Toast.show('Формат не поддерживается', 'error');
             input.value = '';
             return;
         }
-
-        // Превью
         if (isImage) {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -527,29 +485,21 @@ const ChatUI = {
             };
             reader.readAsDataURL(file);
         } else {
-            // Для видео показываем иконку и имя
-            const videoPreview = document.getElementById('image-preview-video');
-            const imgPreview = document.getElementById('image-preview-img');
-            imgPreview.style.display = 'none';
-            videoPreview.style.display = 'flex';
-            videoPreview.querySelector('.video-preview-name').textContent = file.name;
+            document.getElementById('image-preview-img').style.display = 'none';
+            const vp = document.getElementById('image-preview-video');
+            vp.style.display = 'flex';
+            vp.querySelector('.video-preview-name').textContent = file.name;
             document.getElementById('image-preview').style.display = 'flex';
         }
-
         Toast.show('Загрузка...', 'info');
         try {
             const data = await API.messages.uploadFile(file);
-            this.pendingImage = {
-                file_url: data.file_url,
-                file_name: data.file_name,
-                file_type: data.file_type  // 'image' или 'video'
-            };
-            Toast.show(`${isVideo ? 'Видео' : 'Фото'} готово к отправке ✓`, 'success');
+            this.pendingImage = { file_url: data.file_url, file_name: data.file_name, file_type: data.file_type };
+            Toast.show(`${isVideo ? 'Видео' : 'Фото'} готово ✓`, 'success');
         } catch (error) {
             Toast.show(error.error || 'Ошибка загрузки', 'error');
             this.cancelImage();
         }
-
         input.value = '';
     },
 
@@ -566,7 +516,7 @@ const ChatUI = {
         event.stopPropagation();
         this.activeReactionMessageId = messageId;
         const picker = document.getElementById('reactions-picker');
-        const rect = event.target.closest('.message-action-btn').getBoundingClientRect();
+        const rect = event.target.getBoundingClientRect();
         picker.style.display = 'flex';
         picker.style.top = (rect.top - 50) + 'px';
         picker.style.left = rect.left + 'px';
@@ -609,8 +559,7 @@ const ChatUI = {
                         ${c.user.id === Auth.currentUser.id ? `
                             <button class="btn-icon" onclick="ChatUI.deleteComment(${c.id})" style="flex-shrink:0;">
                                 <i class="fas fa-trash" style="font-size:12px;"></i>
-                            </button>
-                        ` : ''}
+                            </button>` : ''}
                     </div>`).join('');
             }
             UI.openModal('modal-comments');
@@ -713,13 +662,38 @@ const ChatUI = {
     appendMessage(msg) {
         if (!this.currentChat || msg.chat_id !== this.currentChat.id) return;
         if (this.currentMessages.find(m => m.id === msg.id)) return;
-
         this.currentMessages.push(msg);
         const container = document.getElementById('messages-container');
         const isOutgoing = msg.sender && msg.sender.id === Auth.currentUser.id;
         const empty = container.querySelector('.empty-state');
         if (empty) empty.remove();
-        container.insertAdjacentHTML('beforeend', this.renderMessage(msg, isOutgoing));
+        const msgHtml = this.renderMessage(msg, isOutgoing);
+        container.insertAdjacentHTML('beforeend', msgHtml);
+
+        // Привязываем события к новому сообщению
+        const newEl = container.querySelector(`[data-message-id="${msg.id}"]`);
+        if (newEl) {
+            const msgId = msg.id;
+            newEl.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                App.showMsgContextMenu(e, msgId, isOutgoing);
+            });
+            let longPressTimer = null;
+            newEl.addEventListener('touchstart', () => {
+                longPressTimer = setTimeout(() => {
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    App.showMsgContextMenu(null, msgId, isOutgoing);
+                }, 500);
+            }, { passive: true });
+            newEl.addEventListener('touchend', () => {
+                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            });
+            newEl.addEventListener('touchmove', () => {
+                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            });
+        }
+
         this.scrollToBottom();
     },
 

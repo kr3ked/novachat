@@ -1,16 +1,27 @@
 const App = {
     socket: null,
     selectedGroupMembers: [],
+    _contextMenuOpen: false,
 
     init() {
         Auth.init();
+
+        // Закрываем все контекстные меню при клике
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.reactions-picker') && !e.target.closest('.message-action-btn')) {
                 document.getElementById('reactions-picker').style.display = 'none';
             }
-            // Закрываем контекстное меню при клике вне его
             if (!e.target.closest('.context-menu')) {
                 this.hideContextMenu();
+                this.hideMsgContextMenu();
+            }
+        });
+
+        // Закрываем при нажатии Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.hideContextMenu();
+                this.hideMsgContextMenu();
             }
         });
     },
@@ -134,8 +145,6 @@ const App = {
             return `
                 <div class="chat-item ${isActive ? 'active' : ''}"
                      data-chat-id="${chat.id}"
-                     data-chat-type="${chat.chat_type}"
-                     data-chat-name="${chat.name || ''}"
                      onclick="ChatUI.openChat(${chat.id})"
                      oncontextmenu="App.showChatContextMenu(event, ${chat.id}, '${chat.chat_type}', '${(chat.name || '').replace(/'/g, "\\'")}')">
                     <div class="avatar">${avatarContent}</div>
@@ -150,17 +159,17 @@ const App = {
         }).join('');
     },
 
-    // ===== КОНТЕКСТНОЕ МЕНЮ ДЛЯ ЧАТОВ =====
+    // ===== КОНТЕКСТНОЕ МЕНЮ ЧАТА =====
     showChatContextMenu(event, chatId, chatType, chatName) {
         event.preventDefault();
         event.stopPropagation();
 
-        this.hideContextMenu();
+        // Закрываем меню сообщения если открыто
+        this.hideMsgContextMenu();
 
         const menu = document.getElementById('chat-context-menu');
         const isGroup = chatType === 'group';
 
-        // Меняем текст в зависимости от типа чата
         const deleteBtn = document.getElementById('ctx-delete-chat');
         if (isGroup) {
             deleteBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Покинуть группу';
@@ -168,31 +177,138 @@ const App = {
             deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Удалить чат';
         }
 
-        deleteBtn.onclick = () => {
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation();
             this.hideContextMenu();
             this.deleteChatById(chatId, chatType, chatName);
         };
 
-        // Позиционируем меню
-        const x = event.clientX;
-        const y = event.clientY;
-        const menuW = 200;
-        const menuH = 60;
-
-        menu.style.left = (x + menuW > window.innerWidth ? x - menuW : x) + 'px';
-        menu.style.top = (y + menuH > window.innerHeight ? y - menuH : y) + 'px';
-        menu.style.display = 'block';
-
-        // Анимация
-        requestAnimationFrame(() => menu.classList.add('visible'));
+        this._positionMenu(menu, event.clientX, event.clientY);
     },
 
     hideContextMenu() {
         const menu = document.getElementById('chat-context-menu');
         if (menu) {
             menu.classList.remove('visible');
-            setTimeout(() => { menu.style.display = 'none'; }, 150);
+            setTimeout(() => {
+                if (!menu.classList.contains('visible')) {
+                    menu.style.display = 'none';
+                }
+            }, 150);
         }
+    },
+
+    // ===== КОНТЕКСТНОЕ МЕНЮ СООБЩЕНИЯ =====
+    showMsgContextMenu(event, messageId, isOutgoing) {
+        if (event && event.preventDefault) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        // Закрываем меню чата если открыто
+        this.hideContextMenu();
+
+        const menu = document.getElementById('msg-context-menu');
+
+        // Показываем/скрываем кнопки в зависимости от того чьё сообщение
+        document.getElementById('ctx-msg-edit').style.display = isOutgoing ? 'flex' : 'none';
+        document.getElementById('ctx-msg-delete').style.display = isOutgoing ? 'flex' : 'none';
+
+        // Привязываем действия
+        document.getElementById('ctx-msg-reply').onclick = (e) => {
+            e.stopPropagation();
+            this.hideMsgContextMenu();
+            ChatUI.setReply(messageId);
+        };
+        document.getElementById('ctx-msg-forward').onclick = (e) => {
+            e.stopPropagation();
+            this.hideMsgContextMenu();
+            ChatUI.showForward(messageId);
+        };
+        document.getElementById('ctx-msg-edit').onclick = (e) => {
+            e.stopPropagation();
+            this.hideMsgContextMenu();
+            ChatUI.editMessage(messageId);
+        };
+        document.getElementById('ctx-msg-delete').onclick = (e) => {
+            e.stopPropagation();
+            this.hideMsgContextMenu();
+            ChatUI.deleteMessage(messageId);
+        };
+        document.getElementById('ctx-msg-react').onclick = (e) => {
+            e.stopPropagation();
+            this.hideMsgContextMenu();
+            // Показываем пикер реакций рядом с сообщением
+            const msgEl = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (msgEl) {
+                const rect = msgEl.getBoundingClientRect();
+                const picker = document.getElementById('reactions-picker');
+                picker.style.display = 'flex';
+                picker.style.top = (rect.top - 56) + 'px';
+                picker.style.left = Math.max(8, rect.left) + 'px';
+                ChatUI.activeReactionMessageId = messageId;
+                setTimeout(() => {
+                    document.addEventListener('click', function handler() {
+                        picker.style.display = 'none';
+                        document.removeEventListener('click', handler);
+                    });
+                }, 10);
+            }
+        };
+
+        if (event && event.clientX) {
+            this._positionMenu(menu, event.clientX, event.clientY);
+        } else {
+            // Для long press на мобильном — по центру экрана снизу
+            menu.style.left = '50%';
+            menu.style.transform = 'translateX(-50%)';
+            menu.style.top = 'auto';
+            menu.style.bottom = '80px';
+            menu.style.display = 'block';
+            requestAnimationFrame(() => menu.classList.add('visible'));
+        }
+    },
+
+    hideMsgContextMenu() {
+        const menu = document.getElementById('msg-context-menu');
+        if (menu) {
+            menu.classList.remove('visible');
+            menu.style.transform = '';
+            menu.style.bottom = '';
+            setTimeout(() => {
+                if (!menu.classList.contains('visible')) {
+                    menu.style.display = 'none';
+                }
+            }, 150);
+        }
+    },
+
+    // Позиционирование меню с учётом границ экрана
+    _positionMenu(menu, x, y) {
+        menu.style.display = 'block';
+        menu.style.left = '0px';
+        menu.style.top = '0px';
+        menu.style.bottom = '';
+        menu.style.transform = '';
+
+        requestAnimationFrame(() => {
+            const menuW = menu.offsetWidth || 200;
+            const menuH = menu.offsetHeight || 150;
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+
+            let left = x;
+            let top = y;
+
+            if (left + menuW > winW) left = winW - menuW - 8;
+            if (top + menuH > winH) top = winH - menuH - 8;
+            if (left < 8) left = 8;
+            if (top < 8) top = 8;
+
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
+            menu.classList.add('visible');
+        });
     },
 
     async deleteChatById(chatId, chatType, chatName) {
@@ -204,17 +320,12 @@ const App = {
         if (!confirm(confirmText)) return;
 
         try {
-            const result = await API.chats.delete(chatId);
-
-            // Если это был открытый чат — закрываем
+            await API.chats.delete(chatId);
             if (ChatUI.currentChat && ChatUI.currentChat.id === chatId) {
                 UI.closeChat();
             }
-
             await this.loadChats();
-
-            const msg = isGroup ? 'Вы покинули группу' : 'Чат удалён';
-            Toast.show(msg, 'success');
+            Toast.show(isGroup ? 'Вы покинули группу' : 'Чат удалён', 'success');
         } catch (error) {
             Toast.show(error.error || 'Ошибка', 'error');
         }
@@ -285,7 +396,6 @@ const App = {
             ]);
 
             let html = '';
-
             if (usersData.users.length > 0) {
                 html += '<div style="padding:8px 12px;font-size:12px;color:var(--text-secondary);font-weight:600;">ПОЛЬЗОВАТЕЛИ</div>';
                 html += usersData.users.map(u => `
@@ -297,7 +407,6 @@ const App = {
                         </div>
                     </div>`).join('');
             }
-
             if (channelsData.channels.length > 0) {
                 html += '<div style="padding:8px 12px;font-size:12px;color:var(--text-secondary);font-weight:600;">КАНАЛЫ</div>';
                 html += channelsData.channels.map(ch => `
@@ -309,7 +418,6 @@ const App = {
                         </div>
                     </div>`).join('');
             }
-
             if (!html) html = '<div class="empty-state"><p>Ничего не найдено</p></div>';
             resultsEl.innerHTML = html;
         } catch (error) {
@@ -375,13 +483,11 @@ const App = {
         const idx = this.selectedGroupMembers.indexOf(userId);
         if (idx > -1) this.selectedGroupMembers.splice(idx, 1);
         else this.selectedGroupMembers.push(userId);
-
         const container = document.getElementById('selected-members');
         const searchVal = document.getElementById('group-member-search').value;
         this.searchUsersForGroup(searchVal);
         container.innerHTML = this.selectedGroupMembers.length > 0
-            ? `<span class="selected-member">${this.selectedGroupMembers.length} выбрано</span>`
-            : '';
+            ? `<span class="selected-member">${this.selectedGroupMembers.length} выбрано</span>` : '';
     },
 
     async createGroup() {
@@ -421,9 +527,7 @@ const App = {
         const bio = document.getElementById('profile-bio').value.trim();
         try {
             const data = await API.users.updateProfile({
-                display_name: name,
-                username: username || null,
-                bio: bio
+                display_name: name, username: username || null, bio
             });
             Auth.currentUser = data.user;
             localStorage.setItem('novachat_user', JSON.stringify(data.user));
@@ -470,7 +574,6 @@ const App = {
             const data = await API.users.getUser(userId);
             const user = data.user;
             const backendBase = 'https://novachat-backend-55fr.onrender.com';
-
             const avatarEl = document.getElementById('view-profile-avatar');
             if (user.avatar_url) {
                 const src = user.avatar_url.startsWith('http') ? user.avatar_url : backendBase + user.avatar_url;
@@ -478,7 +581,6 @@ const App = {
             } else {
                 avatarEl.textContent = user.display_name.charAt(0).toUpperCase();
             }
-
             document.getElementById('view-profile-name').textContent = user.display_name;
             const usernameEl = document.getElementById('view-profile-username');
             if (user.username) {
@@ -487,7 +589,6 @@ const App = {
             } else {
                 usernameEl.style.display = 'none';
             }
-
             const statusEl = document.getElementById('view-profile-status');
             if (user.is_online) {
                 statusEl.textContent = 'онлайн';
@@ -496,7 +597,6 @@ const App = {
                 statusEl.textContent = this.formatLastSeen(user.last_seen);
                 statusEl.className = 'profile-status-big';
             }
-
             const bioSection = document.getElementById('view-profile-bio-section');
             if (user.bio && user.bio.trim()) {
                 document.getElementById('view-profile-bio').textContent = user.bio;
@@ -504,9 +604,7 @@ const App = {
             } else {
                 bioSection.style.display = 'none';
             }
-
             document.getElementById('view-profile-phone').textContent = user.phone || 'Скрыт';
-
             const msgBtn = document.getElementById('view-profile-message-btn');
             if (user.id === Auth.currentUser.id) {
                 msgBtn.style.display = 'none';
@@ -517,7 +615,6 @@ const App = {
                     App.startChatWith(user.id);
                 };
             }
-
             UI.openModal('modal-user-profile');
         } catch (error) {
             Toast.show('Ошибка загрузки профиля', 'error');
@@ -528,7 +625,6 @@ const App = {
         if (!ChatUI.currentChat) return;
         const chat = ChatUI.currentChat;
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
-
         const avatarEl = document.getElementById('group-info-avatar');
         if (chat.avatar_url) {
             const src = chat.avatar_url.startsWith('http') ? chat.avatar_url : backendBase + chat.avatar_url;
@@ -536,10 +632,8 @@ const App = {
         } else {
             avatarEl.innerHTML = chat.name ? chat.name.charAt(0).toUpperCase() : '<i class="fas fa-users"></i>';
         }
-
         document.getElementById('group-info-name').textContent = chat.name || 'Группа';
         document.getElementById('group-info-count').textContent = `${chat.members_count} участников`;
-
         const membersList = document.getElementById('group-info-members');
         if (chat.members_list && chat.members_list.length > 0) {
             membersList.innerHTML = chat.members_list.map(m => `
@@ -554,26 +648,20 @@ const App = {
         } else {
             membersList.innerHTML = '<div class="empty-state"><p>Нет участников</p></div>';
         }
-
         const leaveBtn = document.getElementById('group-info-leave-btn');
-        if (chat.chat_type === 'group') {
-            leaveBtn.style.display = 'block';
-            leaveBtn.onclick = async () => {
-                if (!confirm('Покинуть группу?')) return;
-                try {
-                    await API.chats.leave(chat.id);
-                    UI.closeModal('modal-group-info');
-                    UI.closeChat();
-                    await App.loadChats();
-                    Toast.show('Вы покинули группу', 'success');
-                } catch (e) {
-                    Toast.show('Ошибка', 'error');
-                }
-            };
-        } else {
-            leaveBtn.style.display = 'none';
-        }
-
+        leaveBtn.style.display = 'block';
+        leaveBtn.onclick = async () => {
+            if (!confirm('Покинуть группу?')) return;
+            try {
+                await API.chats.leave(chat.id);
+                UI.closeModal('modal-group-info');
+                UI.closeChat();
+                await App.loadChats();
+                Toast.show('Вы покинули группу', 'success');
+            } catch (e) {
+                Toast.show('Ошибка', 'error');
+            }
+        };
         UI.openModal('modal-group-info');
     },
 
@@ -661,10 +749,7 @@ const UI = {
         const btn = document.getElementById('btn-confirm-delete');
         if (passwordInput) passwordInput.value = '';
         if (errorEl) errorEl.textContent = '';
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-trash"></i> Удалить навсегда';
-        }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash"></i> Удалить навсегда'; }
         this.openModal('modal-delete-account');
     },
     showSearchUsers() { this.showNewChat(); },
@@ -692,7 +777,6 @@ const UI = {
     openModal(id) {
         const modal = document.getElementById(id);
         if (modal) modal.classList.add('active');
-        else console.error('Modal not found:', id);
     },
     closeModal(id) {
         const modal = document.getElementById(id);
