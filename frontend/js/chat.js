@@ -5,6 +5,7 @@ const ChatUI = {
     activeReactionMessageId: null,
     activeCommentMessageId: null,
     forwardMessageId: null,
+    pendingImage: null,
 
     async openChat(chatId) {
         try {
@@ -120,6 +121,20 @@ const ChatUI = {
                 </div>`;
         }
 
+        let imageHtml = '';
+        if (msg.file_url && (msg.message_type === 'image' || msg.message_type === 'forwarded')) {
+            const backendBase = 'https://novachat-backend-55fr.onrender.com';
+            const src = msg.file_url.startsWith('http') ? msg.file_url : backendBase + msg.file_url;
+            imageHtml = `
+                <div class="message-image-wrapper">
+                    <img src="${src}" 
+                         class="message-image" 
+                         alt="${msg.file_name || 'Фото'}"
+                         onclick="window.open('${src}', '_blank')"
+                         onerror="this.parentElement.innerHTML='<span style=\\'color:var(--text-secondary);font-size:12px;\\'>Фото недоступно</span>'" />
+                </div>`;
+        }
+
         let reactionsHtml = '';
         if (msg.reactions && Object.keys(msg.reactions).length > 0) {
             reactionsHtml = '<div class="message-reactions">';
@@ -136,9 +151,10 @@ const ChatUI = {
             <div class="message ${isOutgoing ? 'outgoing' : 'incoming'}" data-message-id="${msg.id}">
                 <div class="message-bubble">
                     ${forwardHtml}
-                   ${isGroup && msg.sender ? `<div class="message-sender" onclick="App.showUserProfile(${msg.sender.id})">${senderName}</div>` : ''}
+                    ${isGroup && msg.sender ? `<div class="message-sender" onclick="App.showUserProfile(${msg.sender.id})">${senderName}</div>` : ''}
                     ${replyHtml}
-                    <div class="message-text">${this.escapeHtml(msg.text || '')}</div>
+                    ${imageHtml}
+                    ${msg.text ? `<div class="message-text">${this.escapeHtml(msg.text)}</div>` : ''}
                     ${reactionsHtml}
                     <div class="message-meta">
                         ${msg.is_edited ? '<span class="message-edited">ред.</span>' : ''}
@@ -174,24 +190,36 @@ const ChatUI = {
     async sendMessage() {
         const input = document.getElementById('message-input');
         const text = input.value.trim();
-        if (!text || !this.currentChat) return;
+
+        if (!text && !this.pendingImage) return;
+        if (!this.currentChat) return;
 
         const replyToId = this.replyTo ? this.replyTo.id : null;
-        
+        const imageData = this.pendingImage;
+
         input.value = '';
         input.style.height = 'auto';
         this.cancelReply();
+        this.cancelImage();
 
         try {
             if (App.socket && App.socket.connected) {
                 App.socket.emit('send_message', {
                     token: API.token,
                     chat_id: this.currentChat.id,
-                    text: text,
-                    reply_to_id: replyToId
+                    text: text || null,
+                    reply_to_id: replyToId,
+                    file_url: imageData ? imageData.file_url : null,
+                    file_name: imageData ? imageData.file_name : null
                 });
             } else {
-                await API.messages.send(this.currentChat.id, text, replyToId);
+                await API.messages.send(
+                    this.currentChat.id, 
+                    text || null, 
+                    replyToId,
+                    imageData ? imageData.file_url : null,
+                    imageData ? imageData.file_name : null
+                );
                 await this.loadMessages(this.currentChat.id);
             }
         } catch (error) {
@@ -230,6 +258,47 @@ const ChatUI = {
     cancelReply() {
         this.replyTo = null;
         document.getElementById('reply-preview').style.display = 'none';
+    },
+
+    openImagePicker() {
+        document.getElementById('image-input').click();
+    },
+
+    async handleImageSelect(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+        if (!allowed.includes(file.type)) {
+            Toast.show('Формат не поддерживается', 'error');
+            input.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('image-preview-img').src = e.target.result;
+            document.getElementById('image-preview').style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+
+        Toast.show('Загрузка...', 'info');
+        try {
+            const data = await API.messages.uploadImage(file);
+            this.pendingImage = { file_url: data.file_url, file_name: data.file_name };
+            Toast.show('Готово к отправке ✓', 'success');
+        } catch (error) {
+            Toast.show(error.error || 'Ошибка загрузки', 'error');
+            this.cancelImage();
+        }
+
+        input.value = '';
+    },
+
+    cancelImage() {
+        this.pendingImage = null;
+        document.getElementById('image-preview').style.display = 'none';
+        document.getElementById('image-preview-img').src = '';
     },
 
     showReactions(event, messageId) {

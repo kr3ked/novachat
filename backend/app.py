@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room
 from models import db, User, Message, Chat
@@ -26,6 +26,12 @@ app.register_blueprint(channels_bp, url_prefix='/api/channels')
 app.register_blueprint(messages_bp, url_prefix='/api/messages')
 
 connected_users = {}
+
+
+@app.route('/uploads/<path:filename>')
+def uploaded_file(filename):
+    upload_folder = app.config.get('UPLOAD_FOLDER', '/tmp/uploads')
+    return send_from_directory(upload_folder, filename)
 
 
 @socketio.on('connect')
@@ -78,29 +84,36 @@ def handle_send_message(data):
         return
     user = User.query.get(user_id)
     chat_id = data.get('chat_id')
-    text = data.get('text', '').strip()
+    text = data.get('text', '').strip() if data.get('text') else ''
     reply_to_id = data.get('reply_to_id')
-    if not chat_id or not text:
+    file_url = data.get('file_url')
+    file_name = data.get('file_name')
+
+    if not chat_id or (not text and not file_url):
         return
+
     chat = Chat.query.get(chat_id)
     if not chat or user not in chat.members:
         return
+
+    msg_type = 'image' if file_url else 'text'
+
     message = Message(
-        text=text,
+        text=text if text else None,
         chat_id=chat_id,
         sender_id=user.id,
-        message_type='text',
-        reply_to_id=reply_to_id
+        message_type=msg_type,
+        reply_to_id=reply_to_id,
+        file_url=file_url,
+        file_name=file_name
     )
     db.session.add(message)
     db.session.commit()
 
     msg_dict = message.to_dict()
 
-    # Отправляем сообщение в комнату чата
     emit('new_message', msg_dict, room=f'chat_{chat_id}')
 
-    # Уведомляем всех участников об обновлении списка чатов
     for member in chat.members:
         socketio.emit('chat_updated', {
             'chat_id': chat_id,

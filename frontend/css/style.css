@@ -1547,3 +1547,31 @@ input::placeholder, textarea::placeholder {
 .delete-buttons .btn {
     flex: 1;
 }
+/* ========== ИЗОБРАЖЕНИЯ В СООБЩЕНИЯХ ========== */
+.message-image-wrapper {
+    margin: 4px 0;
+}
+
+.message-image {
+    max-width: 260px;
+    max-height: 260px;
+    width: 100%;
+    border-radius: 10px;
+    cursor: pointer;
+    display: block;
+    object-fit: contain;
+    transition: opacity var(--transition), transform var(--transition);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+.message-image:hover {
+    opacity: 0.92;
+    transform: scale(1.01);
+}
+
+@media (max-width: 768px) {
+    .message-image {
+        max-width: 200px;
+        max-height: 200px;
+    }
+}

@@ -1,9 +1,18 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from models import db, Message, Chat, Channel, Comment, User, message_likes
 from routes.users import login_required
 from datetime import datetime
+import os
+import uuid
+from werkzeug.utils import secure_filename
 
 messages_bp = Blueprint('messages', __name__)
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @messages_bp.route('/chat/<int:chat_id>', methods=['GET'])
@@ -63,12 +72,14 @@ def send_message(user):
     data = request.get_json()
 
     chat_id = data.get('chat_id')
-    text = data.get('text', '').strip()
+    text = data.get('text', '').strip() if data.get('text') else ''
     reply_to_id = data.get('reply_to_id')
+    file_url = data.get('file_url')
+    file_name = data.get('file_name')
 
     if not chat_id:
         return jsonify({'error': 'Укажите chat_id'}), 400
-    if not text:
+    if not text and not file_url:
         return jsonify({'error': 'Сообщение не может быть пустым'}), 400
 
     chat = Chat.query.get(chat_id)
@@ -77,12 +88,16 @@ def send_message(user):
     if user not in chat.members:
         return jsonify({'error': 'Вы не участник чата'}), 403
 
+    msg_type = 'image' if file_url else 'text'
+
     message = Message(
-        text=text,
+        text=text if text else None,
         chat_id=chat_id,
         sender_id=user.id,
-        message_type='text',
-        reply_to_id=reply_to_id
+        message_type=msg_type,
+        reply_to_id=reply_to_id,
+        file_url=file_url,
+        file_name=file_name
     )
 
     db.session.add(message)
@@ -91,6 +106,40 @@ def send_message(user):
     return jsonify({
         'message': message.to_dict()
     }), 201
+
+
+@messages_bp.route('/upload', methods=['POST'])
+@login_required
+def upload_file(user):
+    if 'image' not in request.files:
+        return jsonify({'error': 'Файл не найден'}), 400
+
+    file = request.files['image']
+    if not file or file.filename == '':
+        return jsonify({'error': 'Файл не выбран'}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Формат не поддерживается (png, jpg, jpeg, gif, webp)'}), 400
+
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    if size > 10 * 1024 * 1024:
+        return jsonify({'error': 'Файл слишком большой (макс 10MB)'}), 400
+
+    ext = file.filename.rsplit('.', 1)[1].lower()
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    original_name = secure_filename(file.filename)
+
+    upload_folder = current_app.config.get('UPLOAD_FOLDER', '/tmp/uploads')
+    os.makedirs(upload_folder, exist_ok=True)
+
+    file.save(os.path.join(upload_folder, filename))
+
+    return jsonify({
+        'file_url': f'/uploads/{filename}',
+        'file_name': original_name
+    }), 200
 
 
 @messages_bp.route('/channel/<int:channel_id>/post', methods=['POST'])
