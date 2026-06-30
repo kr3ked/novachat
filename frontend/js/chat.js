@@ -75,7 +75,6 @@ const ChatUI = {
             const data = await API.messages.getChatMessages(this.currentChat.id, 1);
             const newMsgs = data.messages;
 
-            // Сохраняем сообщения из старых страниц, обновляем только последнюю
             const perPage = 50;
             if (this.currentMessages.length > perPage) {
                 const olderMsgs = this.currentMessages.slice(0, this.currentMessages.length - perPage);
@@ -286,7 +285,6 @@ const ChatUI = {
         this.bindMessageEvents(container);
     },
 
-    // ===== ПРИВЯЗКА СОБЫТИЙ =====
     bindMessageEvents(container) {
         container.querySelectorAll('.message[data-message-id]').forEach(el => {
             if (el.dataset.eventsBound === '1') return;
@@ -295,14 +293,12 @@ const ChatUI = {
             const msgId = parseInt(el.dataset.messageId);
             const isOutgoing = el.classList.contains('outgoing');
 
-            // ПКМ на десктопе
             el.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 App.showMsgContextMenu(e, msgId, isOutgoing);
             });
 
-            // Long press на мобильном
             let longPressTimer = null;
             let startX = 0, startY = 0;
 
@@ -365,9 +361,20 @@ const ChatUI = {
 
         let mediaHtml = '';
         if (msg.file_url) {
+            const isOldBroken = msg.file_url.startsWith('/uploads/');
             const src = msg.file_url.startsWith('http') ? msg.file_url : backendBase + msg.file_url;
             const isVideo = msg.message_type === 'video' || /\.(mp4|webm|ogg|mov|avi)$/i.test(msg.file_url);
-            if (isVideo) {
+            
+            if (isOldBroken) {
+                // Старые битые файлы (которые лежали в /tmp/uploads)
+                mediaHtml = `
+                    <div class="message-image-wrapper" style="padding:14px;background:rgba(139,92,246,0.05);border:1px dashed rgba(139,92,246,0.2);border-radius:8px;text-align:center;">
+                        <i class="fas fa-${isVideo ? 'film' : 'image'}" style="font-size:32px;color:var(--text-secondary);opacity:0.3;"></i>
+                        <div style="color:var(--text-secondary);font-size:12px;margin-top:6px;">
+                            🗑 ${isVideo ? 'Видео' : 'Фото'} больше недоступно
+                        </div>
+                    </div>`;
+            } else if (isVideo) {
                 mediaHtml = `
                     <div class="message-video-wrapper">
                         <video class="message-video" controls preload="metadata">
@@ -381,7 +388,7 @@ const ChatUI = {
                     <div class="message-image-wrapper">
                         <img src="${src}" class="message-image" alt="${msg.file_name || 'Фото'}"
                              onclick="window.open('${src}', '_blank')"
-                             onerror="this.parentElement.innerHTML='<span style=\\'color:var(--text-secondary);font-size:12px;\\'>Фото недоступно</span>'" />
+                             onerror="this.parentElement.innerHTML='<div style=\\'padding:12px;background:rgba(139,92,246,0.05);border-radius:8px;text-align:center;color:var(--text-secondary);font-size:12px;\\'>📷 Фото недоступно</div>'" />
                     </div>`;
             }
         }
@@ -469,13 +476,10 @@ const ChatUI = {
         el.style.height = Math.min(el.scrollHeight, 150) + 'px';
     },
 
-    // ИСПРАВЛЕНО: reply теперь ищет в currentMessages и в DOM
     setReply(messageId) {
-        // Ищем в массиве текущих сообщений
         let msg = this.currentMessages.find(m => m.id === messageId);
 
         if (!msg) {
-            // Если нет в массиве — читаем из DOM
             const el = document.querySelector(`[data-message-id="${messageId}"]`);
             if (el) {
                 const textEl = el.querySelector('.message-text');
@@ -518,6 +522,13 @@ const ChatUI = {
 
         if (!isImage && !isVideo) {
             Toast.show('Формат не поддерживается', 'error');
+            input.value = '';
+            return;
+        }
+
+        const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            Toast.show(`Файл слишком большой (макс ${isVideo ? '50' : '10'} MB)`, 'error');
             input.value = '';
             return;
         }

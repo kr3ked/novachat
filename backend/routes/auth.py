@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 from models import db, User, Chat, Channel, Message, Comment, message_likes, chat_members, channel_subscribers
+from sqlalchemy import text
 import re
 
 auth_bp = Blueprint('auth', __name__)
@@ -123,6 +124,7 @@ def check_auth():
 def delete_account():
     """Полное удаление аккаунта пользователя с подтверждением пароля"""
     from routes.users import get_current_user
+    
     user = get_current_user()
     
     if not user:
@@ -137,7 +139,6 @@ def delete_account():
     if not password:
         return jsonify({'error': 'Введите пароль для подтверждения'}), 400
 
-    # Проверяем пароль
     if not user.check_password(password):
         return jsonify({'error': 'Неверный пароль'}), 401
 
@@ -147,61 +148,116 @@ def delete_account():
     try:
         # 1. Удаляем все реакции пользователя
         db.session.execute(
-            message_likes.delete().where(message_likes.c.user_id == user_id)
+            text("DELETE FROM message_likes WHERE user_id = :uid"),
+            {"uid": user_id}
         )
 
-        # 2. Удаляем все комментарии пользователя
-        Comment.query.filter_by(user_id=user_id).delete()
-
-        # 3. Удаляем все сообщения пользователя (помечаем как удалённые)
-        Message.query.filter_by(sender_id=user_id).update({
-            'is_deleted': True,
-            'text': None
-        })
-
-        # 4. Удаляем пользователя из всех чатов
+        # 2. Удаляем реакции на сообщения пользователя
         db.session.execute(
-            chat_members.delete().where(chat_members.c.user_id == user_id)
+            text("""
+                DELETE FROM message_likes 
+                WHERE message_id IN (SELECT id FROM messages WHERE sender_id = :uid)
+            """),
+            {"uid": user_id}
         )
 
-        # 5. Удаляем пользователя из всех каналов
+        # 3. Удаляем комментарии пользователя
         db.session.execute(
-            channel_subscribers.delete().where(channel_subscribers.c.user_id == user_id)
+            text("DELETE FROM comments WHERE user_id = :uid"),
+            {"uid": user_id}
         )
 
-        # 6. Удаляем все каналы пользователя (где он владелец)
+        # 4. Удаляем комментарии к сообщениям пользователя
+        db.session.execute(
+            text("""
+                DELETE FROM comments 
+                WHERE message_id IN (SELECT id FROM messages WHERE sender_id = :uid)
+            """),
+            {"uid": user_id}
+        )
+
+        # 5. Обнуляем ссылки на сообщения пользователя как reply
+        db.session.execute(
+            text("""
+                UPDATE messages SET reply_to_id = NULL 
+                WHERE reply_to_id IN (SELECT id FROM messages WHERE sender_id = :uid)
+            """),
+            {"uid": user_id}
+        )
+
+        # 6. Обнуляем ссылки на forward
+        db.session.execute(
+            text("""
+                UPDATE messages SET forwarded_from_id = NULL, forwarded_from_user_id = NULL
+                WHERE forwarded_from_id IN (SELECT id FROM messages WHERE sender_id = :uid)
+                   OR forwarded_from_user_id = :uid
+            """),
+            {"uid": user_id}
+        )
+
+        # 7. Удаляем все сообщения пользователя
+        db.session.execute(
+            text("DELETE FROM messages WHERE sender_id = :uid"),
+            {"uid": user_id}
+        )
+
+        # 8. Удаляем из всех чатов
+        db.session.execute(
+            text("DELETE FROM chat_members WHERE user_id = :uid"),
+            {"uid": user_id}
+        )
+
+        # 9. Удаляем из всех каналов
+        db.session.execute(
+            text("DELETE FROM channel_subscribers WHERE user_id = :uid"),
+            {"uid": user_id}
+        )
+
+        # 10. Обрабатываем каналы пользователя
         owned_channels = Channel.query.filter_by(owner_id=user_id).all()
         for channel in owned_channels:
-            # Удаляем всех подписчиков канала
+            ch_id = channel.id
             db.session.execute(
-                channel_subscribers.delete().where(
-                    channel_subscribers.c.channel_id == channel.id
-                )
+                text("""
+                    DELETE FROM message_likes 
+                    WHERE message_id IN (SELECT id FROM messages WHERE channel_id = :cid)
+                """),
+                {"cid": ch_id}
             )
-            # Удаляем все посты канала
-            posts = Message.query.filter_by(channel_id=channel.id).all()
-            for post in posts:
-                # Удаляем реакции на посты
-                db.session.execute(
-                    message_likes.delete().where(message_likes.c.message_id == post.id)
-                )
-                # Удаляем комментарии к постам
-                Comment.query.filter_by(message_id=post.id).delete()
-            # Удаляем сами посты
-            Message.query.filter_by(channel_id=channel.id).delete()
-            # Удаляем канал
-            db.session.delete(channel)
+            db.session.execute(
+                text("""
+                    DELETE FROM comments 
+                    WHERE message_id IN (SELECT id FROM messages WHERE channel_id = :cid)
+                """),
+                {"cid": ch_id}
+            )
+            db.session.execute(
+                text("DELETE FROM channel_subscribers WHERE channel_id = :cid"),
+                {"cid": ch_id}
+            )
+            db.session.execute(
+                text("DELETE FROM messages WHERE channel_id = :cid"),
+                {"cid": ch_id}
+            )
+            db.session.execute(
+                text("DELETE FROM channels WHERE id = :cid"),
+                {"cid": ch_id}
+            )
 
-        # 7. Удаляем пустые приватные чаты (где остался только удалённый пользователь)
-        empty_chats = Chat.query.filter(
-            ~Chat.members.any()
-        ).all()
-        for chat in empty_chats:
-            Message.query.filter_by(chat_id=chat.id).delete()
-            db.session.delete(chat)
+        # 11. Удаляем пустые приватные чаты
+        db.session.execute(
+            text("""
+                DELETE FROM chats 
+                WHERE id NOT IN (SELECT DISTINCT chat_id FROM chat_members WHERE chat_id IS NOT NULL)
+            """)
+        )
 
-        # 8. Удаляем самого пользователя
-        db.session.delete(user)
+        # 12. Удаляем самого пользователя
+        db.session.execute(
+            text("DELETE FROM users WHERE id = :uid"),
+            {"uid": user_id}
+        )
+
         db.session.commit()
 
         return jsonify({
@@ -210,5 +266,7 @@ def delete_account():
 
     except Exception as e:
         db.session.rollback()
-        print(f'Ошибка удаления аккаунта: {e}')
-        return jsonify({'error': 'Не удалось удалить аккаунт. Попробуйте позже.'}), 500
+        import traceback
+        traceback.print_exc()
+        print(f'❌ Ошибка удаления аккаунта: {e}')
+        return jsonify({'error': f'Ошибка удаления: {str(e)}'}), 500

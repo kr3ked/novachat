@@ -64,6 +64,10 @@ const App = {
     getAvatarHtml(user, large = false) {
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
         if (user.avatar_url) {
+            // Проверка на старые битые аватары
+            if (user.avatar_url.startsWith('/uploads/')) {
+                return user.display_name ? user.display_name.charAt(0).toUpperCase() : '?';
+            }
             const src = user.avatar_url.startsWith('http')
                 ? user.avatar_url
                 : backendBase + user.avatar_url;
@@ -94,7 +98,6 @@ const App = {
             ChatUI.appendMessage(msg);
             this.loadChats();
             
-            // 🔔 Показать уведомление
             if (Notifications.enabled) {
                 API.chats.getChat(msg.chat_id).then(data => {
                     Notifications.notify(msg, data.chat);
@@ -168,7 +171,7 @@ const App = {
                 ? ChatUI.formatTime(chat.last_message.created_at) : '';
 
             let avatarContent;
-            if (chat.avatar_url) {
+            if (chat.avatar_url && !chat.avatar_url.startsWith('/uploads/')) {
                 const src = chat.avatar_url.startsWith('http')
                     ? chat.avatar_url
                     : backendBase + chat.avatar_url;
@@ -389,7 +392,7 @@ const App = {
             return;
         }
         list.innerHTML = channels.map(ch => {
-            const avatarContent = ch.avatar_url
+            const avatarContent = (ch.avatar_url && !ch.avatar_url.startsWith('/uploads/'))
                 ? `<img src="${ch.avatar_url}" alt=""
                        onerror="this.parentElement.innerHTML='${ch.name.charAt(0).toUpperCase()}'">` 
                 : ch.name.charAt(0).toUpperCase();
@@ -653,7 +656,7 @@ const App = {
             const backendBase = 'https://novachat-backend-55fr.onrender.com';
 
             const avatarEl = document.getElementById('view-profile-avatar');
-            if (user.avatar_url) {
+            if (user.avatar_url && !user.avatar_url.startsWith('/uploads/')) {
                 const src = user.avatar_url.startsWith('http')
                     ? user.avatar_url
                     : backendBase + user.avatar_url;
@@ -719,7 +722,7 @@ const App = {
         const isOwner = chat.created_by === currentUserId;
 
         const avatarEl = document.getElementById('group-info-avatar');
-        if (chat.avatar_url) {
+        if (chat.avatar_url && !chat.avatar_url.startsWith('/uploads/')) {
             const src = chat.avatar_url.startsWith('http')
                 ? chat.avatar_url
                 : backendBase + chat.avatar_url;
@@ -862,7 +865,6 @@ const App = {
     }
 };
 
-// ===== МЕНЕДЖЕР ТЕМ =====
 const ThemeManager = {
     themes: {
         discord: {
@@ -1004,7 +1006,7 @@ const UI = {
         document.getElementById('profile-username').value = user.username || '';
         document.getElementById('profile-bio').value = user.bio || '';
         const avatarEl = document.getElementById('profile-avatar-preview');
-        if (user.avatar_url) {
+        if (user.avatar_url && !user.avatar_url.startsWith('/uploads/')) {
             const src = user.avatar_url.startsWith('http')
                 ? user.avatar_url
                 : backendBase + user.avatar_url;
@@ -1020,7 +1022,6 @@ const UI = {
             btn.classList.toggle('active', btn.dataset.theme === saved);
         });
         
-        // Загружаем настройки уведомлений
         const notifsEnabled = localStorage.getItem('novachat_notifications') !== 'false' 
                              && Notifications.permission === 'granted';
         const soundEnabled = localStorage.getItem('novachat_sound') !== 'false';

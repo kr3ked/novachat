@@ -2743,3 +2743,44 @@ input::placeholder, textarea::placeholder {
     left: 22px;
     background: white;
 }
+/* ========== ФИКС ЗЕЛЁНОЙ ТОЧКИ ОНЛАЙН ========== */
+.avatar {
+    position: relative !important;
+    overflow: visible !important;
+}
+
+.avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    overflow: hidden;
+}
+
+.online-dot {
+    position: absolute !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    width: 13px !important;
+    height: 13px !important;
+    background: var(--accent-green) !important;
+    border-radius: 50% !important;
+    border: 2.5px solid var(--bg-primary) !important;
+    box-shadow: 0 0 8px var(--accent-green) !important;
+    z-index: 10 !important;
+    pointer-events: none !important;
+}
+
+.online-dot-sm {
+    width: 9px !important;
+    height: 9px !important;
+    bottom: -1px !important;
+    right: -1px !important;
+    border-width: 2px !important;
+}
+
+.chat-header-info .avatar,
+.member-item .avatar,
+.user-item .avatar {
+    overflow: visible !important;
+}
