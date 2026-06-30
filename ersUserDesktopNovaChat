@@ -1,0 +1,5 @@
+[33m6832fd2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Add detailed logging to telegram_storage
+[33ma4b5278[m Fix api.js - correct API object
+[33m4461408[m Add PWA icons
+[33me1e45bc[m Add push notifications + sound + unread counter
+[33m4b5033e[m Add Telegram storage for files
