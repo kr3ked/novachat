@@ -21,24 +21,21 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <script>
-    // Удаляем старые Service Worker чтобы не было проблем с кешем
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(registrations => {
-            for (let registration of registrations) {
-                registration.unregister();
-                console.log('🗑 Старый Service Worker удалён');
-            }
-        });
-        
-        // Очищаем весь кеш
-        if ('caches' in window) {
-            caches.keys().then(names => {
-                names.forEach(name => caches.delete(name));
-                console.log('🗑 Кеш очищен');
+        // ВРЕМЕННО отключаем Service Worker чтобы избежать проблем с кешем
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                registrations.forEach(reg => {
+                    reg.unregister();
+                    console.log('🗑 Service Worker удалён');
+                });
             });
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => caches.delete(name));
+                    console.log('🗑 Кеш очищен');
+                });
+            }
         }
-    };
-</script>
     </script>
 </head>
 <body>
@@ -46,15 +43,16 @@
 
     <div id="auth-screen" class="screen active">
         <div class="auth-container">
-            ">
-               <div class="auth-logo">
-   <div class="logo-icon">
-    <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Чат-пузырь (по центру) -->
-        <path d="M25 30 Q25 22 33 22 L67 22 Q75 22 75 30 L75 58 Q75 66 67 66 L45 66 L32 78 L32 66 Q25 66 25 58 Z" 
-              stroke="white" stroke-width="4" fill="none" stroke-linejoin="round"/>
-    </svg>
-</div>
+            <div class="auth-logo">
+                <div class="logo-icon">
+                    <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M25 30 Q25 22 33 22 L67 22 Q75 22 75 30 L75 58 Q75 66 67 66 L45 66 L32 78 L32 66 Q25 66 25 58 Z" 
+                              stroke="white" stroke-width="4" fill="none" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <h1>NovaChat</h1>
+                <p class="auth-subtitle">Общение нового поколения</p>
+            </div>
 
             <div id="login-form" class="auth-form active">
                 <h2>Вход</h2>
@@ -576,7 +574,6 @@
                     <i class="fas fa-save"></i> Сохранить
                 </button>
 
-                <!-- Уведомления -->
                 <div class="theme-section">
                     <div class="theme-section-title">🔔 Уведомления</div>
                     
