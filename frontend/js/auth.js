@@ -1,174 +1,146 @@
-from flask import Blueprint, request, jsonify, current_app
-from models import db, User, Chat, Channel, Message, Comment, message_likes, chat_members, channel_subscribers
-import re
+const Auth = {
+    currentUser: null,
 
-auth_bp = Blueprint('auth', __name__)
+    init() {
+        const savedUser = localStorage.getItem('novachat_user');
+        const savedToken = localStorage.getItem('novachat_token');
 
+        if (savedUser && savedToken) {
+            this.currentUser = JSON.parse(savedUser);
+            API.setToken(savedToken);
+            this.checkSession();
+        }
+    },
 
-def validate_phone(phone):
-    pattern = r'^\+?[1-9]\d{6,14}$'
-    cleaned = re.sub(r'[\s\-\(\)]', '', phone)
-    return bool(re.match(pattern, cleaned)), cleaned
+    async checkSession() {
+        try {
+            const data = await API.auth.check();
+            this.currentUser = data.user;
+            localStorage.setItem('novachat_user', JSON.stringify(data.user));
+            App.showMainScreen();
+        } catch (e) {
+            this.currentUser = null;
+            API.setToken(null);
+            localStorage.removeItem('novachat_user');
+        }
+    },
 
+    showLogin() {
+        document.getElementById('login-form').classList.add('active');
+        document.getElementById('register-form').classList.remove('active');
+        document.getElementById('auth-error').textContent = '';
+    },
 
-@auth_bp.route('/register', methods=['POST'])
-def register():
-    data = request.get_json()
+    showRegister() {
+        document.getElementById('login-form').classList.remove('active');
+        document.getElementById('register-form').classList.add('active');
+        document.getElementById('auth-error').textContent = '';
+    },
 
-    if not data:
-        return jsonify({'error': 'Нет данных'}), 400
+    async login() {
+        const phone = document.getElementById('login-phone').value.trim();
+        const password = document.getElementById('login-password').value.trim();
+        const errorEl = document.getElementById('auth-error');
 
-    phone = data.get('phone', '').strip()
-    password = data.get('password', '').strip()
-    display_name = data.get('display_name', '').strip()
-    username = data.get('username', '').strip() or None
+        if (!phone || !password) {
+            errorEl.textContent = 'Заполните все поля';
+            return;
+        }
 
-    if not phone or not password or not display_name:
-        return jsonify({'error': 'Заполните все обязательные поля'}), 400
+        try {
+            const data = await API.auth.login(phone, password);
+            API.setToken(data.token);
+            this.currentUser = data.user;
+            localStorage.setItem('novachat_user', JSON.stringify(data.user));
+            errorEl.textContent = '';
+            App.showMainScreen();
+            Toast.show('Добро пожаловать, ' + data.user.display_name + '!', 'success');
+        } catch (error) {
+            errorEl.textContent = error.error || 'Ошибка входа';
+        }
+    },
 
-    is_valid, cleaned_phone = validate_phone(phone)
-    if not is_valid:
-        return jsonify({'error': 'Неверный формат номера телефона'}), 400
+    async register() {
+        const name = document.getElementById('reg-name').value.trim();
+        const phone = document.getElementById('reg-phone').value.trim();
+        const username = document.getElementById('reg-username').value.trim();
+        const password = document.getElementById('reg-password').value.trim();
+        const errorEl = document.getElementById('auth-error');
 
-    if len(password) < 6:
-        return jsonify({'error': 'Пароль должен быть минимум 6 символов'}), 400
+        if (!name || !phone || !password) {
+            errorEl.textContent = 'Заполните обязательные поля';
+            return;
+        }
 
-    if len(display_name) < 2:
-        return jsonify({'error': 'Имя должно быть минимум 2 символа'}), 400
+        try {
+            const data = await API.auth.register(phone, password, name, username || undefined);
+            API.setToken(data.token);
+            this.currentUser = data.user;
+            localStorage.setItem('novachat_user', JSON.stringify(data.user));
+            errorEl.textContent = '';
+            App.showMainScreen();
+            Toast.show('Аккаунт создан! Добро пожаловать!', 'success');
+        } catch (error) {
+            errorEl.textContent = error.error || 'Ошибка регистрации';
+        }
+    },
 
-    if User.query.filter_by(phone=cleaned_phone).first():
-        return jsonify({'error': 'Этот номер уже зарегистрирован'}), 409
+    async logout() {
+        try { await API.auth.logout(); } catch (e) {}
 
-    if username:
-        if len(username) < 3:
-            return jsonify({'error': 'Username минимум 3 символа'}), 400
-        if not re.match(r'^[a-zA-Z0-9_]+$', username):
-            return jsonify({'error': 'Username может содержать только латиницу, цифры и _'}), 400
-        if User.query.filter_by(username=username).first():
-            return jsonify({'error': 'Этот username уже занят'}), 409
+        this.currentUser = null;
+        API.setToken(null);
+        localStorage.removeItem('novachat_user');
+        localStorage.removeItem('novachat_token');
 
-    user = User(
-        phone=cleaned_phone,
-        display_name=display_name,
-        username=username
-    )
-    user.set_password(password)
+        if (App.socket) App.socket.disconnect();
 
-    db.session.add(user)
-    db.session.commit()
+        document.getElementById('auth-screen').classList.add('active');
+        document.getElementById('main-screen').classList.remove('active');
+        UI.toggleMenu();
+        Toast.show('Вы вышли из аккаунта');
+    },
 
-    token = user.generate_token(current_app.config['SECRET_KEY'])
-
-    return jsonify({
-        'message': 'Регистрация успешна!',
-        'token': token,
-        'user': user.to_dict()
-    }), 201
-
-
-@auth_bp.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-
-    if not data:
-        return jsonify({'error': 'Нет данных'}), 400
-
-    phone = data.get('phone', '').strip()
-    password = data.get('password', '').strip()
-
-    if not phone or not password:
-        return jsonify({'error': 'Введите телефон и пароль'}), 400
-
-    _, cleaned_phone = validate_phone(phone)
-
-    user = User.query.filter_by(phone=cleaned_phone).first()
-
-    if not user or not user.check_password(password):
-        return jsonify({'error': 'Неверный телефон или пароль'}), 401
-
-    user.is_online = True
-    db.session.commit()
-
-    token = user.generate_token(current_app.config['SECRET_KEY'])
-
-    return jsonify({
-        'message': 'Вход выполнен!',
-        'token': token,
-        'user': user.to_dict()
-    }), 200
-
-
-@auth_bp.route('/logout', methods=['POST'])
-def logout():
-    from routes.users import get_current_user
-    user = get_current_user()
-    if user:
-        user.is_online = False
-        from datetime import datetime
-        user.last_seen = datetime.utcnow()
-        db.session.commit()
-    return jsonify({'message': 'Вы вышли из аккаунта'}), 200
-
-
-@auth_bp.route('/check', methods=['GET'])
-def check_auth():
-    from routes.users import get_current_user
-    user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Не авторизован'}), 401
-    return jsonify({'user': user.to_dict()}), 200
-
-
-@auth_bp.route('/delete-account', methods=['POST'])
-def delete_account():
-    """Простое удаление аккаунта"""
-    from routes.users import get_current_user
-    from sqlalchemy import text
-    
-    user = get_current_user()
-    
-    if not user:
-        return jsonify({'error': 'Не авторизован'}), 401
-
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'Нет данных'}), 400
-
-    password = data.get('password', '').strip()
-    
-    if not password:
-        return jsonify({'error': 'Введите пароль'}), 400
-
-    if not user.check_password(password):
-        return jsonify({'error': 'Неверный пароль'}), 401
-
-    user_id = user.id
-
-    try:
-        # Простое удаление через raw SQL
-        db.session.execute(text("DELETE FROM message_likes WHERE user_id = :uid"), {"uid": user_id})
-        db.session.execute(text("DELETE FROM comments WHERE user_id = :uid"), {"uid": user_id})
-        db.session.execute(text("DELETE FROM chat_members WHERE user_id = :uid"), {"uid": user_id})
-        db.session.execute(text("DELETE FROM channel_subscribers WHERE user_id = :uid"), {"uid": user_id})
+    async deleteAccount() {
+        const passwordInput = document.getElementById('delete-password');
+        const errorEl = document.getElementById('delete-error');
+        const btn = document.getElementById('btn-confirm-delete');
         
-        # Обнуляем sender_id вместо удаления сообщений (чтобы не сломать чаты)
-        db.session.execute(text("UPDATE messages SET is_deleted = true, text = NULL WHERE sender_id = :uid"), {"uid": user_id})
+        const password = passwordInput.value.trim();
         
-        # Удаляем каналы пользователя
-        db.session.execute(text("""
-            DELETE FROM channels WHERE owner_id = :uid
-        """), {"uid": user_id})
+        if (!password) {
+            errorEl.textContent = 'Введите пароль';
+            return;
+        }
         
-        # Удаляем самого пользователя
-        db.session.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": user_id})
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Удаление...';
+        errorEl.textContent = '';
         
-        db.session.commit()
-
-        return jsonify({'message': 'Аккаунт удалён'}), 200
-
-    except Exception as e:
-        db.session.rollback()
-        import traceback
-        traceback.print_exc()
-        print(f'❌ Ошибка удаления: {e}')
-        return jsonify({'error': f'Ошибка: {str(e)}'}), 500
+        try {
+            await API.auth.deleteAccount(password);
+            
+            this.currentUser = null;
+            API.setToken(null);
+            localStorage.removeItem('novachat_user');
+            localStorage.removeItem('novachat_token');
+            
+            if (App.socket) App.socket.disconnect();
+            
+            UI.closeModal('modal-delete-account');
+            UI.closeModal('modal-profile');
+            
+            document.getElementById('main-screen').classList.remove('active');
+            document.getElementById('auth-screen').classList.add('active');
+            
+            Toast.show('Аккаунт удалён. Прощайте! 👋', 'success');
+            
+            passwordInput.value = '';
+            
+        } catch (error) {
+            errorEl.textContent = error.error || 'Ошибка удаления';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash"></i> Удалить навсегда';
+        }
+    }
+};
