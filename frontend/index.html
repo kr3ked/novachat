@@ -21,19 +21,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <script>
-        // ВРЕМЕННО отключаем Service Worker чтобы избежать проблем с кешем
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(registrations => {
-                registrations.forEach(reg => {
-                    reg.unregister();
-                    console.log('🗑 Service Worker удалён');
-                });
+                registrations.forEach(reg => reg.unregister());
             });
             if ('caches' in window) {
-                caches.keys().then(names => {
-                    names.forEach(name => caches.delete(name));
-                    console.log('🗑 Кеш очищен');
-                });
+                caches.keys().then(names => names.forEach(name => caches.delete(name)));
             }
         }
     </script>
@@ -130,8 +123,7 @@
                     </button>
                     <div class="search-box">
                         <i class="fas fa-search"></i>
-                        <input type="text" id="search-input" placeholder="Поиск..."
-                               oninput="App.handleSearch(this.value)">
+                        <input type="text" id="search-input" placeholder="Поиск..." oninput="App.handleSearch(this.value)">
                     </div>
                 </div>
 
@@ -146,18 +138,10 @@
                         </div>
                     </div>
                     <div class="menu-items">
-                        <div class="menu-item" onclick="UI.showNewGroup()">
-                            <i class="fas fa-users"></i> Новая группа
-                        </div>
-                        <div class="menu-item" onclick="UI.showNewChannel()">
-                            <i class="fas fa-bullhorn"></i> Новый канал
-                        </div>
-                        <div class="menu-item" onclick="UI.showProfile()">
-                            <i class="fas fa-user-cog"></i> Настройки
-                        </div>
-                        <div class="menu-item" onclick="Auth.logout()">
-                            <i class="fas fa-sign-out-alt"></i> Выйти
-                        </div>
+                        <div class="menu-item" onclick="UI.showNewGroup()"><i class="fas fa-users"></i> Новая группа</div>
+                        <div class="menu-item" onclick="UI.showNewChannel()"><i class="fas fa-bullhorn"></i> Новый канал</div>
+                        <div class="menu-item" onclick="UI.showProfile()"><i class="fas fa-user-cog"></i> Настройки</div>
+                        <div class="menu-item" onclick="Auth.logout()"><i class="fas fa-sign-out-alt"></i> Выйти</div>
                     </div>
                 </div>
                 <div class="menu-overlay" id="menu-overlay" onclick="UI.toggleMenu()"></div>
@@ -177,9 +161,7 @@
                     <div class="empty-state">
                         <i class="fas fa-comments"></i>
                         <p>У вас пока нет чатов</p>
-                        <button class="btn btn-small" onclick="UI.showSearchUsers()">
-                            Найти собеседника
-                        </button>
+                        <button class="btn btn-small" onclick="UI.showSearchUsers()">Найти собеседника</button>
                     </div>
                 </div>
 
@@ -187,9 +169,7 @@
                     <div class="empty-state">
                         <i class="fas fa-bullhorn"></i>
                         <p>Нет подписок на каналы</p>
-                        <button class="btn btn-small" onclick="UI.showSearchChannels()">
-                            Найти каналы
-                        </button>
+                        <button class="btn btn-small" onclick="UI.showSearchChannels()">Найти каналы</button>
                     </div>
                 </div>
 
@@ -222,15 +202,16 @@
                                 <div class="chat-header-status" id="chat-status">online</div>
                             </div>
                         </div>
-<div class="chat-header-actions">
-    <button class="btn-icon" onclick="Calls.startCall('audio')" title="Аудиозвонок">
-        <i class="fas fa-phone"></i>
-    </button>
-    <button class="btn-icon" onclick="Calls.startCall('video')" title="Видеозвонок">
-        <i class="fas fa-video"></i>
-    </button>
-    <button class="btn-icon"><i class="fas fa-ellipsis-v"></i></button>
-</div>
+                        <div class="chat-header-actions">
+                            <button class="btn-icon" onclick="Calls.startCall('audio')" title="Аудиозвонок">
+                                <i class="fas fa-phone"></i>
+                            </button>
+                            <button class="btn-icon" onclick="Calls.startCall('video')" title="Видеозвонок">
+                                <i class="fas fa-video"></i>
+                            </button>
+                            <button class="btn-icon"><i class="fas fa-ellipsis-v"></i></button>
+                        </div>
+                    </div>
 
                     <div class="messages-area" id="messages-area">
                         <div class="messages-container" id="messages-container"></div>
@@ -238,30 +219,18 @@
 
                     <div class="typing-indicator" id="typing-indicator" style="display:none;">
                         <span id="typing-user">Кто-то</span> печатает
-                        <div class="typing-dots">
-                            <span></span><span></span><span></span>
-                        </div>
+                        <div class="typing-dots"><span></span><span></span><span></span></div>
                     </div>
 
-                    <div id="image-preview"
-                         style="display:none; align-items:center; gap:10px; padding:8px 12px;
-                                background:var(--bg-secondary); border-top:1px solid var(--border);">
-                        <img id="image-preview-img" src=""
-                             style="display:none; max-height:72px; max-width:120px;
-                                    border-radius:8px; object-fit:cover;"/>
+                    <div id="image-preview" style="display:none; align-items:center; gap:10px; padding:8px 12px; background:var(--bg-secondary); border-top:1px solid var(--border);">
+                        <img id="image-preview-img" src="" style="display:none; max-height:72px; max-width:120px; border-radius:8px; object-fit:cover;"/>
                         <div id="image-preview-video" style="display:none; align-items:center; gap:10px;">
-                            <div style="width:48px;height:48px;border-radius:8px;
-                                        background:var(--bg-active);display:flex;
-                                        align-items:center;justify-content:center;">
+                            <div style="width:48px;height:48px;border-radius:8px;background:var(--bg-active);display:flex;align-items:center;justify-content:center;">
                                 <i class="fas fa-film" style="font-size:20px;color:var(--accent);"></i>
                             </div>
-                            <span class="video-preview-name"
-                                  style="font-size:13px;color:var(--text-secondary);max-width:150px;
-                                         overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                            <span class="video-preview-name" style="font-size:13px;color:var(--text-secondary);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
                         </div>
-                        <span style="font-size:13px; color:var(--text-secondary); flex:1;">
-                            Готово к отправке
-                        </span>
+                        <span style="font-size:13px; color:var(--text-secondary); flex:1;">Готово к отправке</span>
                         <button class="btn-icon" onclick="ChatUI.cancelImage()" type="button">
                             <i class="fas fa-times"></i>
                         </button>
@@ -278,17 +247,12 @@
                     </div>
 
                     <div class="message-input-area">
-                        <input type="file" id="image-input"
-                               accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime"
-                               style="display:none" onchange="ChatUI.handleImageSelect(this)">
-                        <button class="btn-icon" onclick="ChatUI.openImagePicker()"
-                                title="Прикрепить фото или видео">
+                        <input type="file" id="image-input" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime" style="display:none" onchange="ChatUI.handleImageSelect(this)">
+                        <button class="btn-icon" onclick="ChatUI.openImagePicker()" title="Прикрепить фото или видео">
                             <i class="fas fa-paperclip"></i>
                         </button>
                         <div class="message-input-wrapper">
-                            <textarea id="message-input" placeholder="Сообщение..." rows="1"
-                                      oninput="ChatUI.autoResize(this)"
-                                      onkeydown="ChatUI.handleKeyDown(event)"></textarea>
+                            <textarea id="message-input" placeholder="Сообщение..." rows="1" oninput="ChatUI.autoResize(this)" onkeydown="ChatUI.handleKeyDown(event)"></textarea>
                         </div>
                         <button class="btn-icon btn-send" onclick="ChatUI.sendMessage()">
                             <i class="fas fa-paper-plane"></i>
@@ -301,8 +265,7 @@
                         <button class="btn-icon btn-back" onclick="UI.closeChat()">
                             <i class="fas fa-arrow-left"></i>
                         </button>
-                        <div class="chat-header-info" onclick="ChannelUI.showChannelInfo()"
-                             style="cursor:pointer;">
+                        <div class="chat-header-info" onclick="ChannelUI.showChannelInfo()" style="cursor:pointer;">
                             <div class="avatar"><i class="fas fa-bullhorn"></i></div>
                             <div class="chat-header-text">
                                 <div class="chat-header-name" id="channel-name">Канал</div>
@@ -310,17 +273,13 @@
                             </div>
                         </div>
                         <div class="chat-header-actions">
-                            <button class="btn-icon" id="btn-subscribe"
-                                    onclick="ChannelUI.toggleSubscribe()">
+                            <button class="btn-icon" id="btn-subscribe" onclick="ChannelUI.toggleSubscribe()">
                                 <i class="fas fa-bell"></i>
                             </button>
-                            <button class="btn-icon" id="btn-edit-channel"
-                                    onclick="ChannelUI.showEditChannel()"
-                                    title="Редактировать канал" style="display:none;">
+                            <button class="btn-icon" id="btn-edit-channel" onclick="ChannelUI.showEditChannel()" title="Редактировать канал" style="display:none;">
                                 <i class="fas fa-pen"></i>
                             </button>
-                            <button class="btn-icon" onclick="ChannelUI.showChannelInfo()"
-                                    title="Инфо о канале">
+                            <button class="btn-icon" onclick="ChannelUI.showChannelInfo()" title="Инфо о канале">
                                 <i class="fas fa-info-circle"></i>
                             </button>
                         </div>
@@ -330,50 +289,28 @@
                         <div class="messages-container" id="channel-posts-container"></div>
                     </div>
 
-                    <div class="message-input-area" id="channel-input-area"
-                         style="display:none; flex-direction:column;">
-
-                        <div id="channel-file-preview"
-                             style="display:none; align-items:center; gap:10px; padding:8px 12px;
-                                    background:var(--bg-secondary); border-top:1px solid var(--border);
-                                    width:100%;">
-                            <img id="channel-preview-img" src=""
-                                 style="display:none; max-height:60px; max-width:100px;
-                                        border-radius:8px; object-fit:cover;"/>
-                            <div id="channel-preview-video"
-                                 style="display:none; align-items:center; gap:8px;">
-                                <div style="width:40px;height:40px;border-radius:8px;
-                                            background:var(--bg-active);display:flex;
-                                            align-items:center;justify-content:center;">
-                                    <i class="fas fa-film"
-                                       style="font-size:16px;color:var(--accent);"></i>
+                    <div class="message-input-area" id="channel-input-area" style="display:none; flex-direction:column;">
+                        <div id="channel-file-preview" style="display:none; align-items:center; gap:10px; padding:8px 12px; background:var(--bg-secondary); border-top:1px solid var(--border); width:100%;">
+                            <img id="channel-preview-img" src="" style="display:none; max-height:60px; max-width:100px; border-radius:8px; object-fit:cover;"/>
+                            <div id="channel-preview-video" style="display:none; align-items:center; gap:8px;">
+                                <div style="width:40px;height:40px;border-radius:8px;background:var(--bg-active);display:flex;align-items:center;justify-content:center;">
+                                    <i class="fas fa-film" style="font-size:16px;color:var(--accent);"></i>
                                 </div>
-                                <span class="video-preview-name"
-                                      style="font-size:12px;color:var(--text-secondary);
-                                             max-width:120px;overflow:hidden;
-                                             text-overflow:ellipsis;white-space:nowrap;"></span>
+                                <span class="video-preview-name" style="font-size:12px;color:var(--text-secondary);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
                             </div>
-                            <span style="font-size:12px;color:var(--text-secondary);flex:1;">
-                                Готово к публикации
-                            </span>
-                            <button class="btn-icon" onclick="ChannelUI.cancelChannelFile()"
-                                    type="button">
+                            <span style="font-size:12px;color:var(--text-secondary);flex:1;">Готово к публикации</span>
+                            <button class="btn-icon" onclick="ChannelUI.cancelChannelFile()" type="button">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
 
                         <div style="display:flex; align-items:flex-end; gap:4px; padding:8px;">
-                            <input type="file" id="channel-file-input"
-                                   accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime"
-                                   style="display:none"
-                                   onchange="ChannelUI.handleChannelFileSelect(this)">
-                            <button class="btn-icon" onclick="ChannelUI.openChannelFilePicker()"
-                                    title="Прикрепить фото или видео">
+                            <input type="file" id="channel-file-input" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime" style="display:none" onchange="ChannelUI.handleChannelFileSelect(this)">
+                            <button class="btn-icon" onclick="ChannelUI.openChannelFilePicker()" title="Прикрепить фото или видео">
                                 <i class="fas fa-paperclip"></i>
                             </button>
                             <div class="message-input-wrapper">
-                                <textarea id="channel-post-input" placeholder="Новый пост..."
-                                          rows="1" oninput="ChatUI.autoResize(this)"></textarea>
+                                <textarea id="channel-post-input" placeholder="Новый пост..." rows="1" oninput="ChatUI.autoResize(this)"></textarea>
                             </div>
                             <button class="btn-icon btn-send" onclick="ChannelUI.createPost()">
                                 <i class="fas fa-paper-plane"></i>
@@ -386,19 +323,16 @@
         </div>
     </div>
 
+    <!-- МОДАЛЫ -->
     <div class="modal" id="modal-new-chat">
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Новый чат</h3>
-                <button class="btn-icon" onclick="UI.closeModal('modal-new-chat')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="btn-icon" onclick="UI.closeModal('modal-new-chat')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <input type="text" id="new-chat-search"
-                           placeholder="Поиск по имени или username..."
-                           oninput="App.searchUsersForChat(this.value)">
+                    <input type="text" id="new-chat-search" placeholder="Поиск по имени или username..." oninput="App.searchUsersForChat(this.value)">
                 </div>
                 <div class="user-list" id="new-chat-users"></div>
             </div>
@@ -409,9 +343,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Новая группа</h3>
-                <button class="btn-icon" onclick="UI.closeModal('modal-new-group')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="btn-icon" onclick="UI.closeModal('modal-new-group')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -420,8 +352,7 @@
                 </div>
                 <div class="form-group">
                     <label>Добавить участников</label>
-                    <input type="text" id="group-member-search" placeholder="Поиск..."
-                           oninput="App.searchUsersForGroup(this.value)">
+                    <input type="text" id="group-member-search" placeholder="Поиск..." oninput="App.searchUsersForGroup(this.value)">
                 </div>
                 <div class="selected-members" id="selected-members"></div>
                 <div class="user-list" id="group-users-list"></div>
@@ -436,9 +367,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Новый канал</h3>
-                <button class="btn-icon" onclick="UI.closeModal('modal-new-channel')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="btn-icon" onclick="UI.closeModal('modal-new-channel')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -454,8 +383,7 @@
                 </div>
                 <div class="form-group">
                     <label>Описание</label>
-                    <textarea id="channel-create-desc" placeholder="О чём ваш канал..."
-                              rows="3"></textarea>
+                    <textarea id="channel-create-desc" placeholder="О чём ваш канал..." rows="3"></textarea>
                 </div>
                 <button class="btn btn-primary btn-full" onclick="App.createChannel()">
                     <i class="fas fa-bullhorn"></i> Создать канал
@@ -468,17 +396,13 @@
         <div class="modal-content modal-tall">
             <div class="modal-header">
                 <h3>Комментарии</h3>
-                <button class="btn-icon" onclick="UI.closeModal('modal-comments')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="btn-icon" onclick="UI.closeModal('modal-comments')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="comments-list" id="comments-list"></div>
                 <div class="comment-input-area">
                     <input type="text" id="comment-input" placeholder="Написать комментарий...">
-                    <button class="btn-icon" onclick="ChatUI.addComment()">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
+                    <button class="btn-icon" onclick="ChatUI.addComment()"><i class="fas fa-paper-plane"></i></button>
                 </div>
             </div>
         </div>
@@ -488,9 +412,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Переслать сообщение</h3>
-                <button class="btn-icon" onclick="UI.closeModal('modal-forward')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="btn-icon" onclick="UI.closeModal('modal-forward')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="forward-list" id="forward-list"></div>
@@ -502,9 +424,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Профиль</h3>
-                <button class="btn-icon" onclick="UI.closeModal('modal-user-profile')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="btn-icon" onclick="UI.closeModal('modal-user-profile')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="user-profile-view">
@@ -512,8 +432,7 @@
                     <div class="profile-name-big" id="view-profile-name">Имя</div>
                     <div class="profile-username-big" id="view-profile-username">@username</div>
                     <div class="profile-status-big" id="view-profile-status">был(а) недавно</div>
-                    <div class="profile-info-section" id="view-profile-bio-section"
-                         style="display:none;">
+                    <div class="profile-info-section" id="view-profile-bio-section" style="display:none;">
                         <div class="profile-info-label">О себе</div>
                         <div class="profile-info-text" id="view-profile-bio"></div>
                     </div>
@@ -535,18 +454,12 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Настройки профиля</h3>
-                <button class="btn-icon" onclick="UI.closeModal('modal-profile')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="btn-icon" onclick="UI.closeModal('modal-profile')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
-
                 <div class="profile-avatar-section">
-                    <input type="file" id="avatar-input"
-                           accept="image/png,image/jpeg,image/gif,image/webp"
-                           style="display:none" onchange="App.uploadAvatar(this)">
-                    <div class="avatar-upload-wrapper"
-                         onclick="document.getElementById('avatar-input').click()">
+                    <input type="file" id="avatar-input" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none" onchange="App.uploadAvatar(this)">
+                    <div class="avatar-upload-wrapper" onclick="document.getElementById('avatar-input').click()">
                         <div class="avatar avatar-xl" id="profile-avatar-preview">
                             <i class="fas fa-user"></i>
                         </div>
@@ -571,8 +484,7 @@
                 </div>
                 <div class="form-group">
                     <label>О себе</label>
-                    <textarea id="profile-bio" rows="3"
-                              placeholder="Расскажите о себе..."></textarea>
+                    <textarea id="profile-bio" rows="3" placeholder="Расскажите о себе..."></textarea>
                 </div>
                 <button class="btn btn-primary btn-full" onclick="App.updateProfile()">
                     <i class="fas fa-save"></i> Сохранить
@@ -580,32 +492,20 @@
 
                 <div class="theme-section">
                     <div class="theme-section-title">🔔 Уведомления</div>
-                    
                     <label class="settings-toggle">
                         <div class="settings-toggle-info">
-                            <div class="settings-toggle-title">
-                                <i class="fas fa-bell"></i> Push-уведомления
-                            </div>
-                            <div class="settings-toggle-desc">
-                                Уведомления о новых сообщениях
-                            </div>
+                            <div class="settings-toggle-title"><i class="fas fa-bell"></i> Push-уведомления</div>
+                            <div class="settings-toggle-desc">Уведомления о новых сообщениях</div>
                         </div>
-                        <input type="checkbox" id="settings-notifications" 
-                               onchange="UI.toggleNotifications(this.checked)">
+                        <input type="checkbox" id="settings-notifications" onchange="UI.toggleNotifications(this.checked)">
                         <span class="toggle-slider"></span>
                     </label>
-                    
                     <label class="settings-toggle">
                         <div class="settings-toggle-info">
-                            <div class="settings-toggle-title">
-                                <i class="fas fa-volume-up"></i> Звук уведомлений
-                            </div>
-                            <div class="settings-toggle-desc">
-                                Звуковой сигнал при новом сообщении
-                            </div>
+                            <div class="settings-toggle-title"><i class="fas fa-volume-up"></i> Звук уведомлений</div>
+                            <div class="settings-toggle-desc">Звуковой сигнал при новом сообщении</div>
                         </div>
-                        <input type="checkbox" id="settings-sound"
-                               onchange="UI.toggleSound(this.checked)">
+                        <input type="checkbox" id="settings-sound" onchange="UI.toggleSound(this.checked)">
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
@@ -613,18 +513,15 @@
                 <div class="theme-section">
                     <div class="theme-section-title">🎨 Тема оформления</div>
                     <div class="theme-buttons">
-                        <button class="theme-btn active" data-theme="discord"
-                                onclick="ThemeManager.apply('discord')">
+                        <button class="theme-btn active" data-theme="discord" onclick="ThemeManager.apply('discord')">
                             <div class="theme-preview theme-preview-discord"></div>
                             <span>Discord</span>
                         </button>
-                        <button class="theme-btn" data-theme="telegram"
-                                onclick="ThemeManager.apply('telegram')">
+                        <button class="theme-btn" data-theme="telegram" onclick="ThemeManager.apply('telegram')">
                             <div class="theme-preview theme-preview-telegram"></div>
                             <span>Telegram</span>
                         </button>
-                        <button class="theme-btn" data-theme="darkred"
-                                onclick="ThemeManager.apply('darkred')">
+                        <button class="theme-btn" data-theme="darkred" onclick="ThemeManager.apply('darkred')">
                             <div class="theme-preview theme-preview-darkred"></div>
                             <span>Тёмно-красный</span>
                         </button>
@@ -645,9 +542,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>⚠️ Удалить аккаунт</h3>
-                <button class="btn-icon" onclick="UI.closeModal('modal-delete-account')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="btn-icon" onclick="UI.closeModal('modal-delete-account')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="warning-box">
@@ -672,12 +567,8 @@
                 </div>
                 <div id="delete-error" class="error-message"></div>
                 <div class="delete-buttons">
-                    <button class="btn btn-secondary btn-full"
-                            onclick="UI.closeModal('modal-delete-account')">
-                        Отмена
-                    </button>
-                    <button class="btn btn-danger btn-full" onclick="Auth.deleteAccount()"
-                            id="btn-confirm-delete">
+                    <button class="btn btn-secondary btn-full" onclick="UI.closeModal('modal-delete-account')">Отмена</button>
+                    <button class="btn btn-danger btn-full" onclick="Auth.deleteAccount()" id="btn-confirm-delete">
                         <i class="fas fa-trash"></i> Удалить навсегда
                     </button>
                 </div>
@@ -689,9 +580,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Информация о канале</h3>
-                <button class="btn-icon" onclick="UI.closeModal('modal-channel-info')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="btn-icon" onclick="UI.closeModal('modal-channel-info')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="user-profile-view">
@@ -701,21 +590,16 @@
                     <div class="profile-name-big" id="channel-info-name">Канал</div>
                     <div class="profile-username-big" id="channel-info-handle">@handle</div>
                     <div class="profile-status-big" id="channel-info-subs">0 подписчиков</div>
-                    <div class="profile-info-section" id="channel-info-desc-section"
-                         style="display:none;">
+                    <div class="profile-info-section" id="channel-info-desc-section" style="display:none;">
                         <div class="profile-info-label">Описание</div>
                         <div class="profile-info-text" id="channel-info-desc"></div>
                     </div>
-                    <div class="profile-actions"
-                         style="width:100%;margin-top:12px;display:flex;
-                                flex-direction:column;gap:8px;">
-                        <button class="btn btn-primary btn-full"
-                                onclick="UI.closeModal('modal-channel-info'); ChannelUI.toggleSubscribe();">
+                    <div class="profile-actions" style="width:100%;margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+                        <button class="btn btn-primary btn-full" onclick="UI.closeModal('modal-channel-info'); ChannelUI.toggleSubscribe();">
                             <i class="fas fa-bell"></i> Подписка / Отписка
                         </button>
                         <div id="channel-info-owner-section" style="display:none;">
-                            <button class="btn btn-secondary btn-full"
-                                    onclick="ChannelUI.showEditChannel()">
+                            <button class="btn btn-secondary btn-full" onclick="ChannelUI.showEditChannel()">
                                 <i class="fas fa-pen"></i> Редактировать канал
                             </button>
                         </div>
@@ -729,9 +613,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>✏️ Редактировать канал</h3>
-                <button class="btn-icon" onclick="UI.closeModal('modal-edit-channel')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="btn-icon" onclick="UI.closeModal('modal-edit-channel')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -740,18 +622,15 @@
                 </div>
                 <div class="form-group">
                     <label>Описание</label>
-                    <textarea id="edit-channel-desc" rows="4"
-                              placeholder="Описание канала..."></textarea>
+                    <textarea id="edit-channel-desc" rows="4" placeholder="Описание канала..."></textarea>
                 </div>
                 <div class="form-group">
                     <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-                        <input type="checkbox" id="edit-channel-public"
-                               style="width:auto;accent-color:var(--accent);">
+                        <input type="checkbox" id="edit-channel-public" style="width:auto;accent-color:var(--accent);">
                         <span>Публичный канал</span>
                     </label>
                 </div>
-                <button class="btn btn-primary btn-full" id="btn-save-channel"
-                        onclick="ChannelUI.saveChannel()">
+                <button class="btn btn-primary btn-full" id="btn-save-channel" onclick="ChannelUI.saveChannel()">
                     <i class="fas fa-save"></i> Сохранить изменения
                 </button>
                 <div class="danger-zone" style="margin-top:20px;">
@@ -768,25 +647,20 @@
         <div class="modal-content modal-tall">
             <div class="modal-header">
                 <h3>Информация о группе</h3>
-                <button class="btn-icon" onclick="UI.closeModal('modal-group-info')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="btn-icon" onclick="UI.closeModal('modal-group-info')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div style="text-align:center;margin-bottom:16px;">
-                    <div class="profile-avatar-big" id="group-info-avatar"
-                         style="margin:0 auto 12px;">
+                    <div class="profile-avatar-big" id="group-info-avatar" style="margin:0 auto 12px;">
                         <i class="fas fa-users"></i>
                     </div>
                     <div class="profile-name-big" id="group-info-name">Группа</div>
                     <div class="profile-status-big" id="group-info-count">0 участников</div>
                 </div>
-                <div style="font-size:13px;color:var(--text-secondary);font-weight:600;
-                            margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">
+                <div style="font-size:13px;color:var(--text-secondary);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">
                     Участники
                 </div>
-                <div id="group-info-members" class="user-list"
-                     style="max-height:300px;overflow-y:auto;"></div>
+                <div id="group-info-members" class="user-list" style="max-height:300px;overflow-y:auto;"></div>
                 <div style="margin-top:16px;" id="group-info-leave-btn">
                     <button class="btn btn-danger btn-full">
                         <i class="fas fa-sign-out-alt"></i> Покинуть группу
@@ -796,81 +670,69 @@
         </div>
     </div>
 
-    <!-- ========== МОДАЛКА ВХОДЯЩЕГО ЗВОНКА ========== -->
-<div class="incoming-call-modal" id="incoming-call-modal" style="display:none;">
-    <div class="incoming-call-content">
-        <div class="incoming-call-header">
-            <div class="incoming-call-pulse">
-                <div class="incoming-call-avatar" id="incoming-call-avatar">
+    <!-- МОДАЛКА ВХОДЯЩЕГО ЗВОНКА -->
+    <div class="incoming-call-modal" id="incoming-call-modal" style="display:none;">
+        <div class="incoming-call-content">
+            <div class="incoming-call-header">
+                <div class="incoming-call-pulse">
+                    <div class="incoming-call-avatar" id="incoming-call-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+                <div class="incoming-call-name" id="incoming-call-name">Кто-то</div>
+                <div class="incoming-call-type" id="incoming-call-type">
+                    <i class="fas fa-phone"></i>
+                    <span>Входящий звонок...</span>
+                </div>
+            </div>
+            <div class="incoming-call-actions">
+                <button class="call-btn call-btn-reject" onclick="Calls.rejectIncoming()">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+                <button class="call-btn call-btn-accept" onclick="Calls.acceptIncoming()">
+                    <i class="fas fa-phone"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ЭКРАН АКТИВНОГО ЗВОНКА -->
+    <div class="call-screen" id="call-screen" style="display:none;">
+        <video id="remote-video" class="remote-video" autoplay playsinline></video>
+        <video id="local-video" class="local-video" autoplay playsinline muted></video>
+        
+        <div class="call-audio-overlay" id="call-audio-overlay">
+            <div class="call-audio-avatar-wrapper">
+                <div class="call-audio-pulse"></div>
+                <div class="call-audio-avatar" id="call-audio-avatar">
                     <i class="fas fa-user"></i>
                 </div>
             </div>
-            <div class="incoming-call-name" id="incoming-call-name">Кто-то</div>
-            <div class="incoming-call-type" id="incoming-call-type">
-                <i class="fas fa-phone"></i>
-                <span>Входящий звонок...</span>
-            </div>
+            <div class="call-audio-name" id="call-audio-name">Собеседник</div>
+            <div class="call-audio-status" id="call-audio-status">Соединение...</div>
+            <div class="call-audio-timer" id="call-audio-timer">00:00</div>
         </div>
-        <div class="incoming-call-actions">
-            <button class="call-btn call-btn-reject" onclick="Calls.rejectIncoming()">
+        
+        <div class="call-top-info">
+            <div class="call-top-name" id="call-top-name">Собеседник</div>
+            <div class="call-top-timer" id="call-top-timer">00:00</div>
+        </div>
+        
+        <div class="call-controls">
+            <button class="call-control-btn" id="call-mute-btn" onclick="Calls.toggleMute()" title="Микрофон">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="call-control-btn call-control-hangup" onclick="Calls.endCall()" title="Завершить">
                 <i class="fas fa-phone-slash"></i>
             </button>
-            <button class="call-btn call-btn-accept" onclick="Calls.acceptIncoming()">
-                <i class="fas fa-phone"></i>
+            <button class="call-control-btn" id="call-video-btn" onclick="Calls.toggleVideo()" title="Камера" style="display:none;">
+                <i class="fas fa-video"></i>
+            </button>
+            <button class="call-control-btn" id="call-camera-switch" onclick="Calls.switchCamera()" title="Сменить камеру" style="display:none;">
+                <i class="fas fa-sync-alt"></i>
             </button>
         </div>
     </div>
-</div>
-
-<!-- ========== ЭКРАН АКТИВНОГО ЗВОНКА ========== -->
-<div class="call-screen" id="call-screen" style="display:none;">
-    
-    <!-- Видео собеседника (на весь экран) -->
-    <video id="remote-video" class="remote-video" autoplay playsinline></video>
-    
-    <!-- Своё видео (маленькое окно) -->
-    <video id="local-video" class="local-video" autoplay playsinline muted></video>
-    
-    <!-- Overlay для аудио звонков (когда нет видео) -->
-    <div class="call-audio-overlay" id="call-audio-overlay">
-        <div class="call-audio-avatar-wrapper">
-            <div class="call-audio-pulse"></div>
-            <div class="call-audio-avatar" id="call-audio-avatar">
-                <i class="fas fa-user"></i>
-            </div>
-        </div>
-        <div class="call-audio-name" id="call-audio-name">Собеседник</div>
-        <div class="call-audio-status" id="call-audio-status">Соединение...</div>
-        <div class="call-audio-timer" id="call-audio-timer">00:00</div>
-    </div>
-    
-    <!-- Верхняя панель — инфо о звонке -->
-    <div class="call-top-info">
-        <div class="call-top-name" id="call-top-name">Собеседник</div>
-        <div class="call-top-timer" id="call-top-timer">00:00</div>
-    </div>
-    
-    <!-- Кнопки управления снизу -->
-    <div class="call-controls">
-        <button class="call-control-btn" id="call-mute-btn" onclick="Calls.toggleMute()" title="Микрофон">
-            <i class="fas fa-microphone"></i>
-        </button>
-        <button class="call-control-btn call-control-hangup" onclick="Calls.endCall()" title="Завершить">
-            <i class="fas fa-phone-slash"></i>
-        </button>
-        <button class="call-control-btn" id="call-video-btn" onclick="Calls.toggleVideo()" title="Камера" style="display:none;">
-            <i class="fas fa-video"></i>
-        </button>
-        <button class="call-control-btn" id="call-camera-switch" onclick="Calls.switchCamera()" title="Сменить камеру" style="display:none;">
-            <i class="fas fa-sync-alt"></i>
-        </button>
-    </div>
-</div>
-
-<!-- Звук звонка -->
-<audio id="ringtone" loop>
-    <source src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQBvT18=" type="audio/wav">
-</audio>
 
     <div class="reactions-picker" id="reactions-picker" style="display:none;">
         <span onclick="ChatUI.addReaction('👍')">👍</span>
@@ -892,22 +754,12 @@
     </div>
 
     <div class="context-menu" id="msg-context-menu">
-        <div class="context-menu-item" id="ctx-msg-reply">
-            <i class="fas fa-reply"></i> Ответить
-        </div>
-        <div class="context-menu-item" id="ctx-msg-forward">
-            <i class="fas fa-share"></i> Переслать
-        </div>
-        <div class="context-menu-item" id="ctx-msg-react">
-            <i class="far fa-smile"></i> Реакция
-        </div>
+        <div class="context-menu-item" id="ctx-msg-reply"><i class="fas fa-reply"></i> Ответить</div>
+        <div class="context-menu-item" id="ctx-msg-forward"><i class="fas fa-share"></i> Переслать</div>
+        <div class="context-menu-item" id="ctx-msg-react"><i class="far fa-smile"></i> Реакция</div>
         <div class="context-menu-divider"></div>
-        <div class="context-menu-item" id="ctx-msg-edit">
-            <i class="fas fa-pen"></i> Редактировать
-        </div>
-        <div class="context-menu-item danger" id="ctx-msg-delete">
-            <i class="fas fa-trash"></i> Удалить
-        </div>
+        <div class="context-menu-item" id="ctx-msg-edit"><i class="fas fa-pen"></i> Редактировать</div>
+        <div class="context-menu-item danger" id="ctx-msg-delete"><i class="fas fa-trash"></i> Удалить</div>
     </div>
 
 </div>
