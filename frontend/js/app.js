@@ -50,7 +50,14 @@ const App = {
     },
 
     async sendPing() {
-        try { await API.users.ping(); } catch (e) {}
+        try { 
+            const data = await API.users.ping();
+            // Если backend прислал новый токен - обновляем
+            // Так токен всегда актуален и пользователь не разлогинится
+            if (data && data.token) {
+                API.setToken(data.token);
+            }
+        } catch (e) {}
     },
 
     updateUserInfo() {
@@ -64,7 +71,6 @@ const App = {
     getAvatarHtml(user, large = false) {
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
         if (user.avatar_url) {
-            // Проверка на старые битые аватары
             if (user.avatar_url.startsWith('/uploads/')) {
                 return user.display_name ? user.display_name.charAt(0).toUpperCase() : '?';
             }
@@ -132,7 +138,8 @@ const App = {
         this.socket.on('disconnect', () => {
             console.log('❌ WebSocket disconnected');
         });
-                // Инициализация звонков после подключения сокета
+
+        // Инициализация звонков после подключения сокета
         if (typeof Calls !== 'undefined') {
             Calls.init();
             console.log('📞 Модуль звонков инициализирован');

@@ -153,7 +153,16 @@ def get_user(current_user, user_id):
 @users_bp.route('/ping', methods=['POST'])
 @login_required
 def ping(user):
+    """Обновление активности + продление токена"""
     user.is_online = True
     user.last_seen = datetime.utcnow()
     db.session.commit()
-    return jsonify({'status': 'ok'}), 200
+    
+    # Продлеваем токен каждый раз при активности
+    # Так пользователь никогда не будет разлогинен пока пользуется
+    new_token = user.generate_token(current_app.config['SECRET_KEY'])
+    
+    return jsonify({
+        'status': 'ok',
+        'token': new_token
+    }), 200

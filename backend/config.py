@@ -17,6 +17,7 @@ class Config:
         'pool_recycle': 300,
     }
     
-    JWT_EXPIRATION_HOURS = 72
+    # Токен живёт 30 дней (продлевается автоматически при активности)
+    JWT_EXPIRATION_HOURS = 24 * 30
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     UPLOAD_FOLDER = '/tmp/uploads'

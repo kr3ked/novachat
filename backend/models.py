@@ -57,7 +57,8 @@ class User(db.Model):
             self.password_hash.encode('utf-8')
         )
 
-    def generate_token(self, secret_key, hours=72):
+    def generate_token(self, secret_key, hours=720):
+        # 720 часов = 30 дней
         payload = {
             'user_id': self.id,
             'exp': datetime.utcnow() + timedelta(hours=hours),
