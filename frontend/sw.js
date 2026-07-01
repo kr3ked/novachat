@@ -18,7 +18,7 @@ self.addEventListener('fetch', e => {
  * Обеспечивает офлайн-работу и кеширование
  */
 
-const CACHE_NAME = 'novachat-v1';
+const CACHE_NAME = 'novachat-v2';
 const CACHE_URLS = [
     '/',
     '/index.html',
@@ -81,6 +81,80 @@ self.addEventListener('fetch', (event) => {
         return;
     }
     
+    // Для HTML, JS, CSS — стратегия "Network First"
+    if (event.request.destination === 'document' ||
+        event.request.destination === 'script' ||
+        event.request.destination === 'style') {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    if (response && response.status === 200) {
+                        const responseToCache = response.clone();
+                        caches.open(CACHE_NAME)
+                            .then((cache) => cache.put(event.request, responseToCache));
+                    }
+                    return response;
+                })
+                .catch(() => {
+                    return caches.match(event.request);
+                })
+        );
+        return;
+    }
+    
+    // Для остального — Cache First
+    event.respondWith(
+        caches.match(event.request)
+            .then((response) => {
+                if (response) return response;
+                
+                return fetch(event.request)
+                    .then((response) => {
+                        if (!response || response.status !== 200 || response.type !== 'basic') {
+                            return response;
+                        }
+                        
+                        const responseToCache = response.clone();
+                        caches.open(CACHE_NAME)
+                            .then((cache) => cache.put(event.request, responseToCache));
+                        
+                        return response;
+                    })
+                    .catch(() => {
+                        if (event.request.mode === 'navigate') {
+                            return caches.match('/index.html');
+                        }
+                    });
+            })
+    );
+});
+    
+    // Для остального (картинки, шрифты) — Cache First
+    event.respondWith(
+        caches.match(event.request)
+            .then((response) => {
+                if (response) return response;
+                
+                return fetch(event.request)
+                    .then((response) => {
+                        if (!response || response.status !== 200 || response.type !== 'basic') {
+                            return response;
+                        }
+                        
+                        const responseToCache = response.clone();
+                        caches.open(CACHE_NAME)
+                            .then((cache) => cache.put(event.request, responseToCache));
+                        
+                        return response;
+                    })
+                    .catch(() => {
+                        if (event.request.mode === 'navigate') {
+                            return caches.match('/index.html');
+                        }
+                    });
+            })
+    );
+    
     // Стратегия "Cache First" для статики
     event.respondWith(
         caches.match(event.request)
@@ -114,7 +188,7 @@ self.addEventListener('fetch', (event) => {
                     });
             })
     );
-});
+;
 
 // Push-уведомления (для будущего)
 self.addEventListener('push', (event) => {
