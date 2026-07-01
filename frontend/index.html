@@ -21,13 +21,24 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('✅ Service Worker зарегистрирован'))
-                    .catch(err => console.log('❌ SW ошибка:', err));
+    // Удаляем старые Service Worker чтобы не было проблем с кешем
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (let registration of registrations) {
+                registration.unregister();
+                console.log('🗑 Старый Service Worker удалён');
+            }
+        });
+        
+        // Очищаем весь кеш
+        if ('caches' in window) {
+            caches.keys().then(names => {
+                names.forEach(name => caches.delete(name));
+                console.log('🗑 Кеш очищен');
             });
         }
+    };
+</script>
     </script>
 </head>
 <body>
