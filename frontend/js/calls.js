@@ -2,10 +2,9 @@
  * WebRTC звонки — аудио и видео
  */
 const Calls = {
-    // Состояние
     isInCall: false,
     isIncoming: false,
-    callType: null, // 'audio' или 'video'
+    callType: null,
     peerConnection: null,
     localStream: null,
     remoteStream: null,
@@ -16,10 +15,9 @@ const Calls = {
     isVideoOff: false,
     callStartTime: null,
     timerInterval: null,
-    currentFacingMode: 'user', // для переключения камер на мобильном
+    currentFacingMode: 'user',
     incomingCallData: null,
     
-    // Конфигурация STUN серверов (бесплатные от Google)
     rtcConfig: {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -32,74 +30,67 @@ const Calls = {
 
     init() {
         if (!App.socket) {
-            console.log('⚠️ Socket не готов, инициализация звонков отложена');
+            console.log('⚠️ Socket не готов');
             return;
         }
         this.setupSocketHandlers();
+        console.log('📞 Calls модуль готов');
     },
 
     setupSocketHandlers() {
-        // Входящий звонок
         App.socket.on('incoming_call', (data) => {
             console.log('📞 Входящий звонок от', data.caller.display_name);
             this.handleIncomingCall(data);
         });
 
-        // Наш звонок приняли
         App.socket.on('call_answered', async (data) => {
-            console.log('✅ Звонок принят');
+            console.log('✅ Звонок принят, получен answer');
             try {
                 await this.peerConnection.setRemoteDescription(
                     new RTCSessionDescription(data.answer)
                 );
+                console.log('✅ Remote description установлен');
                 this.startTimer();
                 this.updateStatus('В сети');
             } catch (e) {
-                console.error('Error setting remote description:', e);
+                console.error('❌ Error setting remote description:', e);
             }
         });
 
-        // ICE кандидаты
         App.socket.on('ice_candidate', async (data) => {
             if (this.peerConnection && data.candidate) {
                 try {
                     await this.peerConnection.addIceCandidate(
                         new RTCIceCandidate(data.candidate)
                     );
+                    console.log('🧊 ICE candidate добавлен');
                 } catch (e) {
-                    console.error('Error adding ICE candidate:', e);
+                    console.error('❌ Error adding ICE candidate:', e);
                 }
             }
         });
 
-        // Звонок отклонили
         App.socket.on('call_rejected', () => {
             Toast.show('Звонок отклонён', 'error');
             this.cleanup();
         });
 
-        // Звонок завершили
         App.socket.on('call_ended', () => {
             Toast.show('Звонок завершён');
             this.cleanup();
         });
 
-        // Инициатор отменил
         App.socket.on('call_cancelled', () => {
             this.hideIncomingCall();
             Toast.show('Звонок отменён');
         });
 
-        // Не удалось позвонить
         App.socket.on('call_failed', (data) => {
             Toast.show(data.reason || 'Не удалось позвонить', 'error');
             this.cleanup();
         });
     },
 
-    /**
-     * Начать звонок собеседнику
-     */
     async startCall(callType = 'audio') {
         if (!ChatUI.currentChat || !ChatUI.currentChat.other_user) {
             Toast.show('Звонок доступен только в личных чатах', 'error');
@@ -118,38 +109,43 @@ const Calls = {
         this.isInCall = true;
 
         try {
-            // Получаем медиа
             const constraints = {
-                audio: true,
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                },
                 video: callType === 'video' ? { facingMode: 'user' } : false
             };
 
             Toast.show('Запрашиваем доступ к ' + (callType === 'video' ? 'камере' : 'микрофону') + '...');
 
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+            console.log('🎤 Локальный стрим получен:', this.localStream.getTracks().map(t => t.kind).join(', '));
 
-            // Показываем экран звонка
             this.showCallScreen();
             this.updateStatus('Вызов...');
 
-            // Локальное видео
             if (callType === 'video') {
-                document.getElementById('local-video').srcObject = this.localStream;
+                const localVideo = document.getElementById('local-video');
+                localVideo.srcObject = this.localStream;
+                localVideo.play().catch(e => console.error('Local video play:', e));
             }
 
-            // Создаём peer connection
             this.createPeerConnection();
 
-            // Добавляем локальные треки
             this.localStream.getTracks().forEach(track => {
+                console.log('➕ Добавляем локальный трек:', track.kind);
                 this.peerConnection.addTrack(track, this.localStream);
             });
 
-            // Создаём offer
-            const offer = await this.peerConnection.createOffer();
+            const offer = await this.peerConnection.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: callType === 'video'
+            });
             await this.peerConnection.setLocalDescription(offer);
+            console.log('📤 Offer создан и установлен');
 
-            // Отправляем через сокет
             App.socket.emit('call_offer', {
                 token: API.token,
                 target_user_id: this.targetUserId,
@@ -160,18 +156,14 @@ const Calls = {
 
             Toast.show(`Звоним ${this.targetUser.display_name}...`);
         } catch (error) {
-            console.error('Ошибка начала звонка:', error);
+            console.error('❌ Ошибка начала звонка:', error);
             Toast.show('Ошибка: ' + error.message, 'error');
             this.cleanup();
         }
     },
 
-    /**
-     * Обработка входящего звонка
-     */
     handleIncomingCall(data) {
         if (this.isInCall) {
-            // Мы уже в звонке — автоматически отклоняем
             App.socket.emit('call_reject', {
                 token: API.token,
                 caller_user_id: data.caller.id
@@ -185,16 +177,10 @@ const Calls = {
         this.targetUser = data.caller;
         this.targetUserId = data.caller.id;
 
-        // Показываем модалку входящего звонка
         this.showIncomingCall();
-
-        // Играем звук
         this.playRingtone();
     },
 
-    /**
-     * Принять входящий звонок
-     */
     async acceptIncoming() {
         if (!this.incomingCallData) return;
 
@@ -205,35 +191,42 @@ const Calls = {
 
         try {
             const constraints = {
-                audio: true,
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                },
                 video: this.callType === 'video' ? { facingMode: 'user' } : false
             };
 
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+            console.log('🎤 Локальный стрим получен:', this.localStream.getTracks().map(t => t.kind).join(', '));
 
             this.showCallScreen();
             this.updateStatus('Подключение...');
 
             if (this.callType === 'video') {
-                document.getElementById('local-video').srcObject = this.localStream;
+                const localVideo = document.getElementById('local-video');
+                localVideo.srcObject = this.localStream;
+                localVideo.play().catch(e => console.error('Local video play:', e));
             }
 
             this.createPeerConnection();
 
             this.localStream.getTracks().forEach(track => {
+                console.log('➕ Добавляем локальный трек:', track.kind);
                 this.peerConnection.addTrack(track, this.localStream);
             });
 
-            // Устанавливаем offer от собеседника
             await this.peerConnection.setRemoteDescription(
                 new RTCSessionDescription(this.incomingCallData.offer)
             );
+            console.log('📥 Offer установлен');
 
-            // Создаём answer
             const answer = await this.peerConnection.createAnswer();
             await this.peerConnection.setLocalDescription(answer);
+            console.log('📤 Answer создан');
 
-            // Отправляем answer
             App.socket.emit('call_answer', {
                 token: API.token,
                 caller_user_id: this.targetUserId,
@@ -244,15 +237,12 @@ const Calls = {
             this.updateStatus('В сети');
             this.incomingCallData = null;
         } catch (error) {
-            console.error('Ошибка приёма звонка:', error);
+            console.error('❌ Ошибка приёма звонка:', error);
             Toast.show('Ошибка: ' + error.message, 'error');
             this.rejectIncoming();
         }
     },
 
-    /**
-     * Отклонить входящий звонок
-     */
     rejectIncoming() {
         this.stopRingtone();
         if (this.incomingCallData) {
@@ -265,12 +255,8 @@ const Calls = {
         this.cleanup(false);
     },
 
-    /**
-     * Завершить активный звонок
-     */
     endCall() {
         if (this.isCaller && this.peerConnection && this.peerConnection.connectionState !== 'connected') {
-            // Ещё не соединились — отменяем
             App.socket.emit('call_cancel', {
                 token: API.token,
                 target_user_id: this.targetUserId
@@ -284,15 +270,13 @@ const Calls = {
         this.cleanup();
     },
 
-    /**
-     * Создать peer connection
-     */
     createPeerConnection() {
         this.peerConnection = new RTCPeerConnection(this.rtcConfig);
+        console.log('🔗 PeerConnection создан');
 
-        // ICE candidate handler
         this.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
+                console.log('🧊 Отправляем ICE candidate');
                 App.socket.emit('call_ice_candidate', {
                     token: API.token,
                     target_user_id: this.targetUserId,
@@ -301,21 +285,38 @@ const Calls = {
             }
         };
 
-        // Remote stream handler
         this.peerConnection.ontrack = (event) => {
-            console.log('📺 Получен remote stream');
-            this.remoteStream = event.streams[0];
+            console.log('📺 Получен remote track:', event.track.kind);
+            console.log('📺 Streams:', event.streams);
+            
+            if (!this.remoteStream) {
+                this.remoteStream = new MediaStream();
+            }
+            
+            this.remoteStream.addTrack(event.track);
             
             const remoteVideo = document.getElementById('remote-video');
             remoteVideo.srcObject = this.remoteStream;
+            remoteVideo.muted = false;
+            remoteVideo.volume = 1.0;
             
-            // Для аудиозвонков — тоже создаём стрим, но не показываем видео
+            remoteVideo.play().then(() => {
+                console.log('✅ Remote play() success');
+            }).catch(err => {
+                console.error('❌ Ошибка воспроизведения:', err);
+                // Пробуем ещё раз с задержкой
+                setTimeout(() => {
+                    remoteVideo.play().catch(e => console.error('Retry failed:', e));
+                }, 500);
+            });
+            
             if (this.callType === 'audio') {
                 remoteVideo.style.display = 'none';
+                remoteVideo.style.width = '0';
+                remoteVideo.style.height = '0';
             }
         };
 
-        // Connection state handler
         this.peerConnection.onconnectionstatechange = () => {
             const state = this.peerConnection.connectionState;
             console.log('🔗 Connection state:', state);
@@ -328,11 +329,16 @@ const Calls = {
                 this.cleanup();
             }
         };
+        
+        this.peerConnection.oniceconnectionstatechange = () => {
+            console.log('🧊 ICE state:', this.peerConnection.iceConnectionState);
+        };
+        
+        this.peerConnection.onsignalingstatechange = () => {
+            console.log('📡 Signaling state:', this.peerConnection.signalingState);
+        };
     },
 
-    /**
-     * Переключить микрофон
-     */
     toggleMute() {
         if (!this.localStream) return;
         
@@ -351,9 +357,6 @@ const Calls = {
         }
     },
 
-    /**
-     * Переключить камеру
-     */
     toggleVideo() {
         if (!this.localStream || this.callType !== 'video') return;
         
@@ -372,26 +375,20 @@ const Calls = {
         }
     },
 
-    /**
-     * Переключить камеру (фронт/зад на мобильном)
-     */
     async switchCamera() {
         if (!this.localStream || this.callType !== 'video') return;
         
         try {
             this.currentFacingMode = this.currentFacingMode === 'user' ? 'environment' : 'user';
             
-            // Останавливаем старые video треки
             this.localStream.getVideoTracks().forEach(track => track.stop());
             
-            // Получаем новый видео поток
             const newStream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: this.currentFacingMode }
             });
             
             const newVideoTrack = newStream.getVideoTracks()[0];
             
-            // Заменяем в peer connection
             const sender = this.peerConnection.getSenders().find(s => 
                 s.track && s.track.kind === 'video'
             );
@@ -399,7 +396,6 @@ const Calls = {
                 await sender.replaceTrack(newVideoTrack);
             }
             
-            // Обновляем локальный стрим
             const oldVideoTracks = this.localStream.getVideoTracks();
             oldVideoTracks.forEach(t => this.localStream.removeTrack(t));
             this.localStream.addTrack(newVideoTrack);
@@ -410,22 +406,15 @@ const Calls = {
         }
     },
 
-    /**
-     * Показать модалку входящего звонка
-     */
     showIncomingCall() {
         const modal = document.getElementById('incoming-call-modal');
         const avatar = document.getElementById('incoming-call-avatar');
         const name = document.getElementById('incoming-call-name');
         const type = document.getElementById('incoming-call-type');
 
-        // Аватар
         avatar.innerHTML = App.getAvatarHtml(this.targetUser);
-        
-        // Имя
         name.textContent = this.targetUser.display_name;
         
-        // Тип звонка
         const icon = this.callType === 'video' ? 'fa-video' : 'fa-phone';
         const text = this.callType === 'video' ? 'Видеозвонок' : 'Аудиозвонок';
         type.innerHTML = `<i class="fas ${icon}"></i><span>${text}</span>`;
@@ -433,21 +422,14 @@ const Calls = {
         modal.style.display = 'flex';
     },
 
-    /**
-     * Скрыть модалку входящего звонка
-     */
     hideIncomingCall() {
         document.getElementById('incoming-call-modal').style.display = 'none';
     },
 
-    /**
-     * Показать экран активного звонка
-     */
     showCallScreen() {
         const screen = document.getElementById('call-screen');
         screen.style.display = 'flex';
         
-        // Настройка режима
         if (this.callType === 'video') {
             screen.classList.add('video-mode');
             screen.classList.remove('audio-mode');
@@ -462,23 +444,16 @@ const Calls = {
             document.getElementById('local-video').style.display = 'none';
         }
 
-        // Аудио аватар и имя
         document.getElementById('call-audio-avatar').innerHTML = App.getAvatarHtml(this.targetUser);
         document.getElementById('call-audio-name').textContent = this.targetUser.display_name;
         document.getElementById('call-top-name').textContent = this.targetUser.display_name;
     },
 
-    /**
-     * Обновить статус
-     */
     updateStatus(text) {
         const status = document.getElementById('call-audio-status');
         if (status) status.textContent = text;
     },
 
-    /**
-     * Запустить таймер
-     */
     startTimer() {
         if (this.timerInterval) return;
         
@@ -496,9 +471,6 @@ const Calls = {
         }, 1000);
     },
 
-    /**
-     * Играть звонок
-     */
     playRingtone() {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -543,32 +515,25 @@ const Calls = {
         }
     },
 
-    /**
-     * Полная очистка после звонка
-     */
     cleanup(sendEnd = true) {
         this.stopRingtone();
         this.hideIncomingCall();
 
-        // Останавливаем таймер
         if (this.timerInterval) {
             clearInterval(this.timerInterval);
             this.timerInterval = null;
         }
 
-        // Останавливаем локальный стрим
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => track.stop());
             this.localStream = null;
         }
 
-        // Закрываем peer connection
         if (this.peerConnection) {
             this.peerConnection.close();
             this.peerConnection = null;
         }
 
-        // Очищаем видео
         const localVideo = document.getElementById('local-video');
         const remoteVideo = document.getElementById('remote-video');
         if (localVideo) localVideo.srcObject = null;
@@ -577,10 +542,8 @@ const Calls = {
             remoteVideo.style.display = '';
         }
 
-        // Скрываем экран
         document.getElementById('call-screen').style.display = 'none';
 
-        // Сброс кнопок
         const muteBtn = document.getElementById('call-mute-btn');
         if (muteBtn) {
             muteBtn.classList.remove('muted');
@@ -592,7 +555,6 @@ const Calls = {
             videoBtn.innerHTML = '<i class="fas fa-video"></i>';
         }
 
-        // Сброс состояния
         this.isInCall = false;
         this.isIncoming = false;
         this.callType = null;
