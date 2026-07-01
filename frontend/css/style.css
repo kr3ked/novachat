@@ -2813,3 +2813,401 @@ input::placeholder, textarea::placeholder {
 .user-item .avatar {
     overflow: visible !important;
 }
+/* ========== ВХОДЯЩИЙ ЗВОНОК ========== */
+.incoming-call-modal {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: linear-gradient(135deg, #1a0f2e 0%, #000000 50%, #5b21b6 100%);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.incoming-call-modal[style*="flex"] { display: flex !important; }
+
+.incoming-call-content {
+    text-align: center;
+    color: white;
+    padding: 40px;
+    max-width: 400px;
+}
+
+.incoming-call-pulse {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    margin: 0 auto 30px;
+}
+
+.incoming-call-pulse::before,
+.incoming-call-pulse::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    border: 3px solid var(--accent);
+    animation: pulse-ring 2s infinite;
+    opacity: 0;
+}
+
+.incoming-call-pulse::after {
+    animation-delay: 1s;
+}
+
+@keyframes pulse-ring {
+    0% { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+.incoming-call-avatar {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 64px;
+    font-weight: 700;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(139, 92, 246, 0.6);
+    position: relative;
+    z-index: 1;
+}
+
+.incoming-call-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.incoming-call-name {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: white;
+}
+
+.incoming-call-type {
+    font-size: 15px;
+    color: rgba(255,255,255,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 60px;
+}
+
+.incoming-call-type i {
+    animation: shake 1s ease-in-out infinite;
+}
+
+@keyframes shake {
+    0%, 100% { transform: rotate(0); }
+    25% { transform: rotate(-15deg); }
+    75% { transform: rotate(15deg); }
+}
+
+.incoming-call-actions {
+    display: flex;
+    gap: 60px;
+    justify-content: center;
+}
+
+.call-btn {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: none;
+    color: white;
+    font-size: 28px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.call-btn:hover {
+    transform: scale(1.1);
+}
+
+.call-btn:active {
+    transform: scale(0.95);
+}
+
+.call-btn-accept {
+    background: #22c55e;
+    animation: bounce 1.5s ease-in-out infinite;
+}
+
+.call-btn-reject {
+    background: #ef4444;
+}
+
+.call-btn-reject i {
+    transform: rotate(135deg);
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ========== ЭКРАН АКТИВНОГО ЗВОНКА ========== */
+.call-screen {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #000;
+    z-index: 9999;
+    display: flex !important;
+    flex-direction: column;
+}
+
+.call-screen[style*="none"] { display: none !important; }
+
+.remote-video {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+}
+
+.local-video {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 120px;
+    height: 160px;
+    border-radius: 12px;
+    object-fit: cover;
+    background: #1a0f2e;
+    border: 2px solid rgba(255,255,255,0.2);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    z-index: 10;
+    cursor: move;
+}
+
+@media (max-width: 768px) {
+    .local-video {
+        width: 90px;
+        height: 120px;
+        top: 15px;
+        right: 15px;
+    }
+}
+
+.call-audio-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: linear-gradient(135deg, #1a0f2e 0%, #000000 50%, #5b21b6 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    z-index: 5;
+}
+
+.call-audio-avatar-wrapper {
+    position: relative;
+    width: 180px;
+    height: 180px;
+    margin-bottom: 30px;
+}
+
+.call-audio-pulse {
+    position: absolute;
+    top: -20px; left: -20px;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    border: 3px solid var(--accent);
+    animation: pulse-audio 2s infinite;
+}
+
+@keyframes pulse-audio {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.1); opacity: 0.2; }
+}
+
+.call-audio-avatar {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 72px;
+    font-weight: 700;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(139, 92, 246, 0.5);
+}
+
+.call-audio-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.call-audio-name {
+    font-size: 32px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.call-audio-status {
+    font-size: 15px;
+    color: rgba(255,255,255,0.7);
+    margin-bottom: 20px;
+}
+
+.call-audio-timer {
+    font-size: 24px;
+    color: rgba(255,255,255,0.9);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}
+
+/* Скрыть audio overlay при видеозвонке */
+.call-screen.video-mode .call-audio-overlay {
+    display: none;
+}
+
+/* Скрыть таймер сверху при аудио */
+.call-screen.audio-mode .call-top-info {
+    display: none;
+}
+
+.call-top-info {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: white;
+    z-index: 10;
+    background: rgba(0,0,0,0.5);
+    padding: 8px 16px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.call-top-name {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.call-top-timer {
+    font-size: 13px;
+    color: rgba(255,255,255,0.8);
+    font-variant-numeric: tabular-nums;
+}
+
+.call-controls {
+    position: absolute;
+    bottom: 40px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    z-index: 20;
+    padding: 0 20px;
+}
+
+@media (max-width: 768px) {
+    .call-controls {
+        bottom: max(30px, env(safe-area-inset-bottom));
+        gap: 15px;
+    }
+}
+
+.call-control-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px);
+    color: white;
+    font-size: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.call-control-btn:hover {
+    background: rgba(255,255,255,0.25);
+    transform: scale(1.05);
+}
+
+.call-control-btn:active {
+    transform: scale(0.95);
+}
+
+.call-control-btn.active {
+    background: rgba(255,255,255,0.35);
+}
+
+.call-control-btn.muted {
+    background: #ef4444;
+}
+
+.call-control-hangup {
+    background: #ef4444 !important;
+    width: 72px !important;
+    height: 72px !important;
+    font-size: 28px !important;
+}
+
+.call-control-hangup:hover {
+    background: #dc2626 !important;
+    transform: scale(1.1);
+}
+
+.call-control-hangup i {
+    transform: rotate(135deg);
+}
+
+/* Индикатор загрузки внутри аудио звонка */
+.call-connecting-dots {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: 6px;
+}
+
+.call-connecting-dots span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: white;
+    animation: dot-pulse 1.4s infinite;
+}
+
+.call-connecting-dots span:nth-child(2) { animation-delay: 0.2s; }
+.call-connecting-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dot-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.3); }
+}

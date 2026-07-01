@@ -161,6 +161,127 @@ def handle_chat_created(data):
             'chat_id': chat_id,
             'new_chat': True
         }, room=f'user_{member.id}')
+        
+        # ==================== ЗВОНКИ (WebRTC Signaling) ====================
+
+@socketio.on('call_offer')
+def handle_call_offer(data):
+    """Инициатор звонка отправляет offer получателю"""
+    token = data.get('token')
+    user_id = User.verify_token(token, app.config['SECRET_KEY'])
+    if not user_id:
+        return
+    
+    caller = User.query.get(user_id)
+    if not caller:
+        return
+    
+    target_user_id = data.get('target_user_id')
+    chat_id = data.get('chat_id')
+    call_type = data.get('call_type', 'audio')
+    offer = data.get('offer')
+    
+    if not target_user_id or not offer:
+        return
+    
+    target_sid = connected_users.get(target_user_id)
+    if target_sid:
+        socketio.emit('incoming_call', {
+            'caller': caller.to_dict(),
+            'chat_id': chat_id,
+            'call_type': call_type,
+            'offer': offer
+        }, room=target_sid)
+        print(f'📞 Call from {caller.display_name} to user {target_user_id} ({call_type})')
+    else:
+        socketio.emit('call_failed', {
+            'reason': 'Пользователь не в сети'
+        }, room=request.sid)
+
+
+@socketio.on('call_answer')
+def handle_call_answer(data):
+    """Получатель принял звонок и отправляет answer"""
+    token = data.get('token')
+    user_id = User.verify_token(token, app.config['SECRET_KEY'])
+    if not user_id:
+        return
+    
+    caller_user_id = data.get('caller_user_id')
+    answer = data.get('answer')
+    
+    caller_sid = connected_users.get(caller_user_id)
+    if caller_sid:
+        socketio.emit('call_answered', {
+            'answer': answer
+        }, room=caller_sid)
+        print(f'✅ Call answered by user {user_id}')
+
+
+@socketio.on('call_ice_candidate')
+def handle_ice_candidate(data):
+    """Обмен ICE кандидатами для установки P2P"""
+    token = data.get('token')
+    user_id = User.verify_token(token, app.config['SECRET_KEY'])
+    if not user_id:
+        return
+    
+    target_user_id = data.get('target_user_id')
+    candidate = data.get('candidate')
+    
+    target_sid = connected_users.get(target_user_id)
+    if target_sid:
+        socketio.emit('ice_candidate', {
+            'candidate': candidate,
+            'from_user_id': user_id
+        }, room=target_sid)
+
+
+@socketio.on('call_reject')
+def handle_call_reject(data):
+    """Получатель отклонил звонок"""
+    token = data.get('token')
+    user_id = User.verify_token(token, app.config['SECRET_KEY'])
+    if not user_id:
+        return
+    
+    caller_user_id = data.get('caller_user_id')
+    caller_sid = connected_users.get(caller_user_id)
+    if caller_sid:
+        socketio.emit('call_rejected', {}, room=caller_sid)
+        print(f'❌ Call rejected by user {user_id}')
+
+
+@socketio.on('call_end')
+def handle_call_end(data):
+    """Один из участников завершил звонок"""
+    token = data.get('token')
+    user_id = User.verify_token(token, app.config['SECRET_KEY'])
+    if not user_id:
+        return
+    
+    target_user_id = data.get('target_user_id')
+    target_sid = connected_users.get(target_user_id)
+    if target_sid:
+        socketio.emit('call_ended', {
+            'from_user_id': user_id
+        }, room=target_sid)
+        print(f'🔚 Call ended by user {user_id}')
+
+
+@socketio.on('call_cancel')
+def handle_call_cancel(data):
+    """Инициатор отменил звонок (пока получатель не ответил)"""
+    token = data.get('token')
+    user_id = User.verify_token(token, app.config['SECRET_KEY'])
+    if not user_id:
+        return
+    
+    target_user_id = data.get('target_user_id')
+    target_sid = connected_users.get(target_user_id)
+    if target_sid:
+        socketio.emit('call_cancelled', {}, room=target_sid)
+        print(f'🚫 Call cancelled by user {user_id}')
 
 
 with app.app_context():
@@ -172,3 +293,4 @@ if __name__ == '__main__':
     os.makedirs('uploads', exist_ok=True)
     print("🚀 NovaChat запущен на http://localhost:5000")
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
+    

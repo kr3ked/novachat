@@ -132,6 +132,11 @@ const App = {
         this.socket.on('disconnect', () => {
             console.log('❌ WebSocket disconnected');
         });
+                // Инициализация звонков после подключения сокета
+        if (typeof Calls !== 'undefined') {
+            Calls.init();
+            console.log('📞 Модуль звонков инициализирован');
+        }
     },
 
     async loadChats() {

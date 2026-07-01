@@ -222,11 +222,15 @@
                                 <div class="chat-header-status" id="chat-status">online</div>
                             </div>
                         </div>
-                        <div class="chat-header-actions">
-                            <button class="btn-icon"><i class="fas fa-search"></i></button>
-                            <button class="btn-icon"><i class="fas fa-ellipsis-v"></i></button>
-                        </div>
-                    </div>
+<div class="chat-header-actions">
+    <button class="btn-icon" onclick="Calls.startCall('audio')" title="Аудиозвонок">
+        <i class="fas fa-phone"></i>
+    </button>
+    <button class="btn-icon" onclick="Calls.startCall('video')" title="Видеозвонок">
+        <i class="fas fa-video"></i>
+    </button>
+    <button class="btn-icon"><i class="fas fa-ellipsis-v"></i></button>
+</div>
 
                     <div class="messages-area" id="messages-area">
                         <div class="messages-container" id="messages-container"></div>
@@ -792,6 +796,82 @@
         </div>
     </div>
 
+    <!-- ========== МОДАЛКА ВХОДЯЩЕГО ЗВОНКА ========== -->
+<div class="incoming-call-modal" id="incoming-call-modal" style="display:none;">
+    <div class="incoming-call-content">
+        <div class="incoming-call-header">
+            <div class="incoming-call-pulse">
+                <div class="incoming-call-avatar" id="incoming-call-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+            </div>
+            <div class="incoming-call-name" id="incoming-call-name">Кто-то</div>
+            <div class="incoming-call-type" id="incoming-call-type">
+                <i class="fas fa-phone"></i>
+                <span>Входящий звонок...</span>
+            </div>
+        </div>
+        <div class="incoming-call-actions">
+            <button class="call-btn call-btn-reject" onclick="Calls.rejectIncoming()">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+            <button class="call-btn call-btn-accept" onclick="Calls.acceptIncoming()">
+                <i class="fas fa-phone"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== ЭКРАН АКТИВНОГО ЗВОНКА ========== -->
+<div class="call-screen" id="call-screen" style="display:none;">
+    
+    <!-- Видео собеседника (на весь экран) -->
+    <video id="remote-video" class="remote-video" autoplay playsinline></video>
+    
+    <!-- Своё видео (маленькое окно) -->
+    <video id="local-video" class="local-video" autoplay playsinline muted></video>
+    
+    <!-- Overlay для аудио звонков (когда нет видео) -->
+    <div class="call-audio-overlay" id="call-audio-overlay">
+        <div class="call-audio-avatar-wrapper">
+            <div class="call-audio-pulse"></div>
+            <div class="call-audio-avatar" id="call-audio-avatar">
+                <i class="fas fa-user"></i>
+            </div>
+        </div>
+        <div class="call-audio-name" id="call-audio-name">Собеседник</div>
+        <div class="call-audio-status" id="call-audio-status">Соединение...</div>
+        <div class="call-audio-timer" id="call-audio-timer">00:00</div>
+    </div>
+    
+    <!-- Верхняя панель — инфо о звонке -->
+    <div class="call-top-info">
+        <div class="call-top-name" id="call-top-name">Собеседник</div>
+        <div class="call-top-timer" id="call-top-timer">00:00</div>
+    </div>
+    
+    <!-- Кнопки управления снизу -->
+    <div class="call-controls">
+        <button class="call-control-btn" id="call-mute-btn" onclick="Calls.toggleMute()" title="Микрофон">
+            <i class="fas fa-microphone"></i>
+        </button>
+        <button class="call-control-btn call-control-hangup" onclick="Calls.endCall()" title="Завершить">
+            <i class="fas fa-phone-slash"></i>
+        </button>
+        <button class="call-control-btn" id="call-video-btn" onclick="Calls.toggleVideo()" title="Камера" style="display:none;">
+            <i class="fas fa-video"></i>
+        </button>
+        <button class="call-control-btn" id="call-camera-switch" onclick="Calls.switchCamera()" title="Сменить камеру" style="display:none;">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Звук звонка -->
+<audio id="ringtone" loop>
+    <source src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQBvT18=" type="audio/wav">
+</audio>
+
     <div class="reactions-picker" id="reactions-picker" style="display:none;">
         <span onclick="ChatUI.addReaction('👍')">👍</span>
         <span onclick="ChatUI.addReaction('❤️')">❤️</span>
@@ -838,6 +918,7 @@
 <script src="js/chat.js"></script>
 <script src="js/channel.js"></script>
 <script src="js/notifications.js"></script>
+<script src="js/calls.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
