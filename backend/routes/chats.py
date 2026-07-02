@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from models import db, Chat, User, Message, Comment, message_likes, chat_members
-from routes.users import login_required, is_allowed_to_message
+from routes.users import login_required
 from sqlalchemy import text
 
 chats_bp = Blueprint('chats', __name__)
@@ -29,14 +29,6 @@ def create_private_chat(user):
     other_user = User.query.get(other_user_id)
     if not other_user:
         return jsonify({'error': 'Пользователь не найден'}), 404
-
-    # Проверяем настройку приватности
-    if not is_allowed_to_message(user.id, other_user):
-        return jsonify({
-            'error': 'Пользователь принимает сообщения только от одобренных контактов',
-            'privacy_blocked': True,
-            'target_user_id': other_user_id
-        }), 403
 
     existing_chat = Chat.query.filter_by(chat_type='private').filter(
         Chat.members.any(id=user.id)
