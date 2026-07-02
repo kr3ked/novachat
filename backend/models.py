@@ -26,6 +26,13 @@ message_likes = db.Table('message_likes',
     db.Column('created_at', db.DateTime, default=datetime.utcnow)
 )
 
+# Разрешённые контакты (кому пользователь разрешил писать)
+allowed_contacts = db.Table('allowed_contacts',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('contact_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('created_at', db.DateTime, default=datetime.utcnow)
+)
+
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -40,6 +47,9 @@ class User(db.Model):
     is_online = db.Column(db.Boolean, default=False)
     last_seen = db.Column(db.DateTime, default=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Приватность: 'all' = все могут писать, 'contacts' = только одобренные
+    privacy_messages = db.Column(db.String(20), default='all')
 
     sent_messages = db.relationship('Message', backref='sender', lazy='dynamic',
                                      foreign_keys='Message.sender_id')
@@ -58,7 +68,6 @@ class User(db.Model):
         )
 
     def generate_token(self, secret_key, hours=720):
-        # 720 часов = 30 дней
         payload = {
             'user_id': self.id,
             'exp': datetime.utcnow() + timedelta(hours=hours),
@@ -84,7 +93,8 @@ class User(db.Model):
             'avatar_url': self.avatar_url,
             'is_online': self.is_online,
             'last_seen': self.last_seen.isoformat() + 'Z' if self.last_seen else None,
-            'created_at': self.created_at.isoformat() + 'Z'
+            'created_at': self.created_at.isoformat() + 'Z',
+            'privacy_messages': self.privacy_messages or 'all'
         }
 
 
@@ -263,5 +273,30 @@ class Comment(db.Model):
             'text': self.text,
             'message_id': self.message_id,
             'user': self.user.to_dict(),
+            'created_at': self.created_at.isoformat() + 'Z'
+        }
+
+
+class MessageRequest(db.Model):
+    """Заявки на переписку от посторонних пользователей"""
+    __tablename__ = 'message_requests'
+
+    id = db.Column(db.Integer, primary_key=True)
+    from_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    to_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    message_text = db.Column(db.String(500), nullable=True)
+    status = db.Column(db.String(20), default='pending')  # pending, accepted, rejected
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    from_user = db.relationship('User', foreign_keys=[from_user_id])
+    to_user = db.relationship('User', foreign_keys=[to_user_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'from_user': self.from_user.to_dict() if self.from_user else None,
+            'to_user_id': self.to_user_id,
+            'message_text': self.message_text,
+            'status': self.status,
             'created_at': self.created_at.isoformat() + 'Z'
         }

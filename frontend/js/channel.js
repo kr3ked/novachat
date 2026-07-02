@@ -7,6 +7,7 @@ const ChannelUI = {
         try {
             const data = await API.channels.get(channelId);
             this.currentChannel = data.channel;
+            const backendBase = 'https://novachat-backend-55fr.onrender.com';
 
             document.getElementById('empty-chat').style.display = 'none';
             document.getElementById('chat-view').style.display = 'none';
@@ -17,6 +18,19 @@ const ChannelUI = {
             document.getElementById('channel-subs').textContent =
                 `${data.channel.subscribers_count} подписчиков`;
 
+            // Обновляем аватарку в шапке
+            const headerAvatar = document.getElementById('channel-view-avatar');
+            if (headerAvatar) {
+                if (data.channel.avatar_url && !data.channel.avatar_url.startsWith('/uploads/')) {
+                    const src = data.channel.avatar_url.startsWith('http')
+                        ? data.channel.avatar_url
+                        : backendBase + data.channel.avatar_url;
+                    headerAvatar.innerHTML = `<img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                } else {
+                    headerAvatar.innerHTML = data.channel.name.charAt(0).toUpperCase();
+                }
+            }
+
             const subBtn = document.getElementById('btn-subscribe');
             if (data.channel.is_subscribed) {
                 subBtn.innerHTML = '<i class="fas fa-bell-slash"></i>';
@@ -26,7 +40,6 @@ const ChannelUI = {
                 subBtn.title = 'Подписаться';
             }
 
-            // Показываем кнопку редактирования только владельцу
             const editBtn = document.getElementById('btn-edit-channel');
             if (editBtn) {
                 editBtn.style.display = data.channel.is_owner ? 'flex' : 'none';
@@ -276,14 +289,13 @@ const ChannelUI = {
         }
     },
 
-    // Показать профиль канала
     showChannelInfo() {
         if (!this.currentChannel) return;
         const ch = this.currentChannel;
         const backendBase = 'https://novachat-backend-55fr.onrender.com';
 
         const avatarEl = document.getElementById('channel-info-avatar');
-        if (ch.avatar_url) {
+        if (ch.avatar_url && !ch.avatar_url.startsWith('/uploads/')) {
             const src = ch.avatar_url.startsWith('http') ? ch.avatar_url : backendBase + ch.avatar_url;
             avatarEl.innerHTML = `<img src="${src}" alt="">`;
         } else {
@@ -302,27 +314,78 @@ const ChannelUI = {
             descSection.style.display = 'none';
         }
 
-        // Кнопки для владельца
         const ownerSection = document.getElementById('channel-info-owner-section');
         ownerSection.style.display = ch.is_owner ? 'block' : 'none';
 
         UI.openModal('modal-channel-info');
     },
 
-    // Открыть модал редактирования канала
     showEditChannel() {
         if (!this.currentChannel || !this.currentChannel.is_owner) return;
         const ch = this.currentChannel;
+        const backendBase = 'https://novachat-backend-55fr.onrender.com';
 
         document.getElementById('edit-channel-name').value = ch.name || '';
         document.getElementById('edit-channel-desc').value = ch.description || '';
         document.getElementById('edit-channel-public').checked = ch.is_public !== false;
 
+        // Обновляем превью аватарки
+        const avatarPreview = document.getElementById('edit-channel-avatar-preview');
+        if (ch.avatar_url && !ch.avatar_url.startsWith('/uploads/')) {
+            const src = ch.avatar_url.startsWith('http') ? ch.avatar_url : backendBase + ch.avatar_url;
+            avatarPreview.innerHTML = `<img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        } else {
+            avatarPreview.innerHTML = `<span>${ch.name.charAt(0).toUpperCase()}</span>`;
+        }
+
         UI.closeModal('modal-channel-info');
         UI.openModal('modal-edit-channel');
     },
 
-    // Сохранить изменения канала
+    async uploadChannelAvatar(input) {
+        const file = input.files[0];
+        if (!file || !this.currentChannel) return;
+
+        const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+        if (!allowed.includes(file.type)) {
+            Toast.show('Формат не поддерживается', 'error');
+            input.value = '';
+            return;
+        }
+
+        // Показываем превью сразу
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('edit-channel-avatar-preview').innerHTML =
+                `<img src="${e.target.result}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        };
+        reader.readAsDataURL(file);
+
+        Toast.show('Загрузка аватарки...', 'info');
+        try {
+            const data = await API.channels.uploadAvatar(this.currentChannel.id, file);
+            
+            // Обновляем данные канала
+            this.currentChannel = { ...this.currentChannel, avatar_url: data.avatar_url };
+            
+            // Обновляем в шапке канала
+            const backendBase = 'https://novachat-backend-55fr.onrender.com';
+            const src = data.avatar_url.startsWith('http') ? data.avatar_url : backendBase + data.avatar_url;
+            const headerAvatar = document.getElementById('channel-view-avatar');
+            if (headerAvatar) {
+                headerAvatar.innerHTML = `<img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            }
+            
+            // Обновляем список каналов
+            await App.loadChannels();
+            
+            Toast.show('Аватарка канала обновлена! ✓', 'success');
+        } catch (error) {
+            Toast.show(error.error || 'Ошибка загрузки', 'error');
+        }
+        input.value = '';
+    },
+
     async saveChannel() {
         if (!this.currentChannel) return;
 
@@ -346,13 +409,8 @@ const ChannelUI = {
                 is_public: isPublic
             });
 
-            // Обновляем данные текущего канала
             this.currentChannel = { ...this.currentChannel, ...data.channel };
-
-            // Обновляем шапку канала
             document.getElementById('channel-name').textContent = data.channel.name;
-
-            // Обновляем список каналов
             await App.loadChannels();
 
             UI.closeModal('modal-edit-channel');
@@ -365,7 +423,6 @@ const ChannelUI = {
         btn.innerHTML = '<i class="fas fa-save"></i> Сохранить';
     },
 
-    // Удалить канал
     async deleteChannel() {
         if (!this.currentChannel || !this.currentChannel.is_owner) return;
 

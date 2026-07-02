@@ -1,9 +1,19 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from models import db, Channel, User, Message, Comment, message_likes, channel_subscribers
 from routes.users import login_required
+from werkzeug.utils import secure_filename
+import telegram_storage
 import re
+import os
 
 channels_bp = Blueprint('channels', __name__)
+
+ALLOWED_AVATAR_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+
+def allowed_avatar(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_AVATAR_EXTENSIONS
 
 
 @channels_bp.route('/', methods=['GET'])
@@ -154,6 +164,53 @@ def update_channel(user, channel_id):
     return jsonify({'channel': channel.to_dict()}), 200
 
 
+@channels_bp.route('/<int:channel_id>/avatar', methods=['POST'])
+@login_required
+def upload_channel_avatar(user, channel_id):
+    """Загрузка аватарки канала (только владелец)"""
+    channel = Channel.query.get(channel_id)
+    if not channel:
+        return jsonify({'error': 'Канал не найден'}), 404
+    if channel.owner_id != user.id:
+        return jsonify({'error': 'Нет прав'}), 403
+
+    if 'avatar' not in request.files:
+        return jsonify({'error': 'Файл не найден'}), 400
+
+    file = request.files['avatar']
+    if not file or file.filename == '':
+        return jsonify({'error': 'Файл не выбран'}), 400
+
+    if not allowed_avatar(file.filename):
+        return jsonify({'error': 'Формат не поддерживается'}), 400
+
+    # Проверка размера (макс 5MB)
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    if size > 5 * 1024 * 1024:
+        return jsonify({'error': 'Файл слишком большой (макс 5MB)'}), 400
+
+    file_data = file.read()
+    filename = secure_filename(file.filename)
+
+    if not telegram_storage.is_configured():
+        return jsonify({'error': 'Хранилище не настроено'}), 500
+
+    file_id, error = telegram_storage.upload_photo(file_data, filename)
+    if error:
+        return jsonify({'error': 'Ошибка загрузки'}), 500
+
+    avatar_url = f'/api/messages/tg/{file_id}'
+    channel.avatar_url = avatar_url
+    db.session.commit()
+
+    return jsonify({
+        'avatar_url': avatar_url,
+        'channel': channel.to_dict()
+    }), 200
+
+
 @channels_bp.route('/<int:channel_id>', methods=['DELETE'])
 @login_required
 def delete_channel(user, channel_id):
@@ -165,7 +222,6 @@ def delete_channel(user, channel_id):
         return jsonify({'error': 'Нет прав'}), 403
 
     try:
-        # Удаляем реакции и комментарии к постам
         for post in Message.query.filter_by(channel_id=channel_id).all():
             db.session.execute(
                 message_likes.delete().where(
@@ -174,17 +230,14 @@ def delete_channel(user, channel_id):
             )
             Comment.query.filter_by(message_id=post.id).delete()
 
-        # Удаляем посты
         Message.query.filter_by(channel_id=channel_id).delete()
 
-        # Удаляем подписчиков
         db.session.execute(
             channel_subscribers.delete().where(
                 channel_subscribers.c.channel_id == channel_id
             )
         )
 
-        # Удаляем канал
         db.session.delete(channel)
         db.session.commit()
 

@@ -99,7 +99,31 @@ const API = {
             return API.request(`/users/search?q=${encodeURIComponent(query)}`);
         },
         async getUser(userId) { return API.request(`/users/${userId}`); },
-        async ping() { return API.request('/users/ping', { method: 'POST' }); }
+        async ping() { return API.request('/users/ping', { method: 'POST' }); },
+        
+        // Заявки на переписку
+        async sendMessageRequest(userId, message) {
+            return API.request('/users/message-request', {
+                method: 'POST',
+                body: { to_user_id: userId, message: message }
+            });
+        },
+        async getMessageRequests() {
+            return API.request('/users/message-requests');
+        },
+        async acceptMessageRequest(requestId) {
+            return API.request(`/users/message-request/${requestId}/accept`, {
+                method: 'POST'
+            });
+        },
+        async rejectMessageRequest(requestId) {
+            return API.request(`/users/message-request/${requestId}/reject`, {
+                method: 'POST'
+            });
+        },
+        async checkCanMessage(userId) {
+            return API.request(`/users/check-can-message/${userId}`);
+        }
     },
 
     chats: {
@@ -155,6 +179,9 @@ const API = {
         },
         async delete(channelId) {
             return API.request(`/channels/${channelId}`, { method: 'DELETE' });
+        },
+        async uploadAvatar(channelId, file) {
+            return API.uploadFile(`/channels/${channelId}/avatar`, file, 'avatar');
         }
     },
 

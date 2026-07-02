@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from models import db, Chat, User, Message, Comment, message_likes, chat_members
-from routes.users import login_required
+from routes.users import login_required, is_allowed_to_message
 from sqlalchemy import text
 
 chats_bp = Blueprint('chats', __name__)
@@ -29,6 +29,14 @@ def create_private_chat(user):
     other_user = User.query.get(other_user_id)
     if not other_user:
         return jsonify({'error': 'Пользователь не найден'}), 404
+
+    # Проверяем настройку приватности
+    if not is_allowed_to_message(user.id, other_user):
+        return jsonify({
+            'error': 'Пользователь принимает сообщения только от одобренных контактов',
+            'privacy_blocked': True,
+            'target_user_id': other_user_id
+        }), 403
 
     existing_chat = Chat.query.filter_by(chat_type='private').filter(
         Chat.members.any(id=user.id)
@@ -155,7 +163,6 @@ def kick_member(user, chat_id, target_user_id):
     if user not in chat.members:
         return jsonify({'error': 'Вы не участник'}), 403
 
-    # Проверяем что текущий пользователь — создатель или владелец
     member_role = db.session.execute(
         chat_members.select().where(
             db.and_(
@@ -171,7 +178,6 @@ def kick_member(user, chat_id, target_user_id):
     if not is_owner:
         return jsonify({'error': 'Нет прав. Только владелец может выгонять участников'}), 403
 
-    # Нельзя выгнать самого себя этим методом
     if target_user_id == user.id:
         return jsonify({'error': 'Нельзя выгнать самого себя'}), 400
 
@@ -184,7 +190,6 @@ def kick_member(user, chat_id, target_user_id):
     chat.members.remove(target_user)
     db.session.commit()
 
-    # Уведомляем выгнанного пользователя
     from app import socketio
     socketio.emit('kicked_from_chat', {
         'chat_id': chat_id,
