@@ -286,11 +286,45 @@ def handle_call_cancel(data):
 
 with app.app_context():
     db.create_all()
+    
+    # Автоматическая миграция
+    try:
+        from sqlalchemy import text
+        
+        db.session.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_messages VARCHAR(20) DEFAULT 'all'"
+        ))
+        
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS allowed_contacts (
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                contact_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, contact_id)
+            )
+        """))
+        
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS message_requests (
+                id SERIAL PRIMARY KEY,
+                from_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                to_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                message_text VARCHAR(500),
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        
+        db.session.commit()
+        print("✅ Миграция БД выполнена")
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ Миграция: {e}")
+    
     print("✅ База данных инициализирована")
 
 
 if __name__ == '__main__':
     os.makedirs('uploads', exist_ok=True)
-    print("🚀 NovaChat запущен на http://localhost:5000")
+    print("🚀 NovaChat запущен")
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
-    
