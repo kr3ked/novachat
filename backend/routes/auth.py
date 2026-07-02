@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app
 from models import db, User, Chat, Channel, Message, Comment, message_likes, chat_members, channel_subscribers, VerificationCode
 from datetime import datetime, timedelta
+from sqlalchemy import text
 import re
 import random
 import bcrypt
@@ -40,7 +41,6 @@ def send_code():
     display_name = data.get('display_name', '').strip()
     username = data.get('username', '').strip() or None
 
-    # Валидация
     if not email or not password or not display_name:
         return jsonify({'error': 'Заполните все обязательные поля'}), 400
 
@@ -53,11 +53,9 @@ def send_code():
     if len(display_name) < 2:
         return jsonify({'error': 'Имя должно быть минимум 2 символа'}), 400
 
-    # Проверка что email не занят
     if User.query.filter_by(email=email).first():
         return jsonify({'error': 'Этот email уже зарегистрирован'}), 409
 
-    # Проверка username
     if username:
         if len(username) < 3:
             return jsonify({'error': 'Username минимум 3 символа'}), 400
@@ -66,18 +64,14 @@ def send_code():
         if User.query.filter_by(username=username).first():
             return jsonify({'error': 'Этот username уже занят'}), 409
 
-    # Удаляем старые коды для этого email
     VerificationCode.query.filter_by(email=email).delete()
     db.session.commit()
 
-    # Генерируем код
     code = generate_code()
     expires_at = datetime.utcnow() + timedelta(minutes=10)
 
-    # Хэшируем пароль сразу
     password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-    # Сохраняем в БД
     verification = VerificationCode(
         email=email,
         code=code,
@@ -89,7 +83,6 @@ def send_code():
     db.session.add(verification)
     db.session.commit()
 
-    # Отправляем письмо
     if not email_service.is_configured():
         return jsonify({'error': 'Email сервис не настроен'}), 500
 
@@ -121,7 +114,6 @@ def verify_code():
     if len(code) != 6 or not code.isdigit():
         return jsonify({'error': 'Код должен состоять из 6 цифр'}), 400
 
-    # Ищем код
     verification = VerificationCode.query.filter_by(email=email).order_by(
         VerificationCode.created_at.desc()
     ).first()
@@ -147,13 +139,11 @@ def verify_code():
             'error': f'Неверный код. Осталось попыток: {remaining}'
         }), 400
 
-    # Проверяем что email не занят (на всякий случай)
     if User.query.filter_by(email=email).first():
         db.session.delete(verification)
         db.session.commit()
         return jsonify({'error': 'Email уже зарегистрирован'}), 409
 
-    # Создаём пользователя
     user = User(
         email=email,
         display_name=verification.display_name,
@@ -163,14 +153,11 @@ def verify_code():
     )
     db.session.add(user)
 
-    # Удаляем код
     db.session.delete(verification)
     db.session.commit()
 
-    # Токен
     token = user.generate_token(current_app.config['SECRET_KEY'])
 
-    # Приветственное письмо (не критично если не отправится)
     try:
         email_service.send_welcome_email(email, user.display_name)
     except:
@@ -199,13 +186,11 @@ def resend_code():
     if not verification:
         return jsonify({'error': 'Заявка не найдена. Начните регистрацию заново.'}), 404
 
-    # Проверка что прошло минимум 60 секунд с последней отправки
     time_since = (datetime.utcnow() - verification.created_at).total_seconds()
     if time_since < 60:
         wait = int(60 - time_since)
         return jsonify({'error': f'Подождите {wait} секунд перед повторной отправкой'}), 429
 
-    # Генерируем новый код
     new_code = generate_code()
     verification.code = new_code
     verification.attempts = 0
@@ -213,7 +198,6 @@ def resend_code():
     verification.expires_at = datetime.utcnow() + timedelta(minutes=10)
     db.session.commit()
 
-    # Отправляем
     success, error = email_service.send_verification_code(
         email, new_code, verification.display_name
     )
@@ -227,11 +211,11 @@ def resend_code():
     }), 200
 
 
-# ==================== СТАРАЯ РЕГИСТРАЦИЯ ПО ТЕЛЕФОНУ (для совместимости) ====================
+# ==================== СТАРАЯ РЕГИСТРАЦИЯ ПО ТЕЛЕФОНУ ====================
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
-    """Старая регистрация по телефону (оставляем для совместимости)"""
+    """Старая регистрация по телефону (для совместимости)"""
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Нет данных'}), 400
@@ -283,7 +267,7 @@ def register():
     }), 201
 
 
-# ==================== ВХОД (по email ИЛИ телефону) ====================
+# ==================== ВХОД ====================
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -300,11 +284,9 @@ def login():
 
     user = None
 
-    # Пробуем найти по email
     if '@' in login_field:
         user = User.query.filter_by(email=login_field.lower()).first()
     else:
-        # Иначе по телефону
         _, cleaned_phone = validate_phone(login_field)
         user = User.query.filter_by(phone=cleaned_phone).first()
 
@@ -343,11 +325,12 @@ def check_auth():
     return jsonify({'user': user.to_dict()}), 200
 
 
+# ==================== УДАЛЕНИЕ АККАУНТА (ПОЛНОЕ) ====================
+
 @auth_bp.route('/delete-account', methods=['POST'])
 def delete_account():
-    """Простое удаление аккаунта"""
+    """Полное удаление аккаунта со всеми зависимостями"""
     from routes.users import get_current_user
-    from sqlalchemy import text
     
     user = get_current_user()
     
@@ -369,13 +352,95 @@ def delete_account():
     user_id = user.id
 
     try:
+        # 1. Удаляем реакции пользователя
         db.session.execute(text("DELETE FROM message_likes WHERE user_id = :uid"), {"uid": user_id})
+        
+        # 2. Удаляем комментарии пользователя
         db.session.execute(text("DELETE FROM comments WHERE user_id = :uid"), {"uid": user_id})
+        
+        # 3. Удаляем комментарии к сообщениям пользователя
+        db.session.execute(text("""
+            DELETE FROM comments 
+            WHERE message_id IN (SELECT id FROM messages WHERE sender_id = :uid)
+        """), {"uid": user_id})
+        
+        # 4. Удаляем реакции на сообщения пользователя
+        db.session.execute(text("""
+            DELETE FROM message_likes 
+            WHERE message_id IN (SELECT id FROM messages WHERE sender_id = :uid)
+        """), {"uid": user_id})
+        
+        # 5. Обнуляем ссылки reply на сообщения пользователя
+        db.session.execute(text("""
+            UPDATE messages SET reply_to_id = NULL 
+            WHERE reply_to_id IN (SELECT id FROM messages WHERE sender_id = :uid)
+        """), {"uid": user_id})
+        
+        # 6. Обнуляем ссылки forward на сообщения пользователя
+        db.session.execute(text("""
+            UPDATE messages SET forwarded_from_id = NULL, forwarded_from_user_id = NULL
+            WHERE forwarded_from_id IN (SELECT id FROM messages WHERE sender_id = :uid)
+               OR forwarded_from_user_id = :uid
+        """), {"uid": user_id})
+        
+        # 7. Удаляем из чатов
         db.session.execute(text("DELETE FROM chat_members WHERE user_id = :uid"), {"uid": user_id})
+        
+        # 8. Удаляем из каналов
         db.session.execute(text("DELETE FROM channel_subscribers WHERE user_id = :uid"), {"uid": user_id})
-        db.session.execute(text("UPDATE messages SET is_deleted = true, text = NULL WHERE sender_id = :uid"), {"uid": user_id})
-        db.session.execute(text("DELETE FROM channels WHERE owner_id = :uid"), {"uid": user_id})
+        
+        # 9. Обрабатываем каналы пользователя (полное удаление)
+        owned_channels = db.session.execute(text(
+            "SELECT id FROM channels WHERE owner_id = :uid"
+        ), {"uid": user_id}).fetchall()
+        
+        for row in owned_channels:
+            ch_id = row[0]
+            
+            # Удаляем реакции на посты канала
+            db.session.execute(text("""
+                DELETE FROM message_likes 
+                WHERE message_id IN (SELECT id FROM messages WHERE channel_id = :cid)
+            """), {"cid": ch_id})
+            
+            # Удаляем комментарии к постам канала
+            db.session.execute(text("""
+                DELETE FROM comments 
+                WHERE message_id IN (SELECT id FROM messages WHERE channel_id = :cid)
+            """), {"cid": ch_id})
+            
+            # Обнуляем ссылки на посты канала
+            db.session.execute(text("""
+                UPDATE messages SET reply_to_id = NULL 
+                WHERE reply_to_id IN (SELECT id FROM messages WHERE channel_id = :cid)
+            """), {"cid": ch_id})
+            
+            db.session.execute(text("""
+                UPDATE messages SET forwarded_from_id = NULL 
+                WHERE forwarded_from_id IN (SELECT id FROM messages WHERE channel_id = :cid)
+            """), {"cid": ch_id})
+            
+            # Удаляем подписчиков канала
+            db.session.execute(text("DELETE FROM channel_subscribers WHERE channel_id = :cid"), {"cid": ch_id})
+            
+            # Удаляем ВСЕ посты канала
+            db.session.execute(text("DELETE FROM messages WHERE channel_id = :cid"), {"cid": ch_id})
+            
+            # Удаляем сам канал
+            db.session.execute(text("DELETE FROM channels WHERE id = :cid"), {"cid": ch_id})
+        
+        # 10. Удаляем оставшиеся сообщения пользователя
+        db.session.execute(text("DELETE FROM messages WHERE sender_id = :uid"), {"uid": user_id})
+        
+        # 11. Удаляем пустые приватные чаты
+        db.session.execute(text("""
+            DELETE FROM chats 
+            WHERE id NOT IN (SELECT DISTINCT chat_id FROM chat_members WHERE chat_id IS NOT NULL)
+        """))
+        
+        # 12. Удаляем самого пользователя
         db.session.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": user_id})
+        
         db.session.commit()
 
         return jsonify({'message': 'Аккаунт удалён'}), 200
@@ -384,4 +449,5 @@ def delete_account():
         db.session.rollback()
         import traceback
         traceback.print_exc()
+        print(f'❌ Ошибка удаления: {e}')
         return jsonify({'error': f'Ошибка: {str(e)}'}), 500
