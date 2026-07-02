@@ -161,12 +161,12 @@ def handle_chat_created(data):
             'chat_id': chat_id,
             'new_chat': True
         }, room=f'user_{member.id}')
-        
-        # ==================== ЗВОНКИ (WebRTC Signaling) ====================
+
+
+# ==================== ЗВОНКИ ====================
 
 @socketio.on('call_offer')
 def handle_call_offer(data):
-    """Инициатор звонка отправляет offer получателю"""
     token = data.get('token')
     user_id = User.verify_token(token, app.config['SECRET_KEY'])
     if not user_id:
@@ -192,7 +192,6 @@ def handle_call_offer(data):
             'call_type': call_type,
             'offer': offer
         }, room=target_sid)
-        print(f'📞 Call from {caller.display_name} to user {target_user_id} ({call_type})')
     else:
         socketio.emit('call_failed', {
             'reason': 'Пользователь не в сети'
@@ -201,7 +200,6 @@ def handle_call_offer(data):
 
 @socketio.on('call_answer')
 def handle_call_answer(data):
-    """Получатель принял звонок и отправляет answer"""
     token = data.get('token')
     user_id = User.verify_token(token, app.config['SECRET_KEY'])
     if not user_id:
@@ -215,12 +213,10 @@ def handle_call_answer(data):
         socketio.emit('call_answered', {
             'answer': answer
         }, room=caller_sid)
-        print(f'✅ Call answered by user {user_id}')
 
 
 @socketio.on('call_ice_candidate')
 def handle_ice_candidate(data):
-    """Обмен ICE кандидатами для установки P2P"""
     token = data.get('token')
     user_id = User.verify_token(token, app.config['SECRET_KEY'])
     if not user_id:
@@ -239,7 +235,6 @@ def handle_ice_candidate(data):
 
 @socketio.on('call_reject')
 def handle_call_reject(data):
-    """Получатель отклонил звонок"""
     token = data.get('token')
     user_id = User.verify_token(token, app.config['SECRET_KEY'])
     if not user_id:
@@ -249,12 +244,10 @@ def handle_call_reject(data):
     caller_sid = connected_users.get(caller_user_id)
     if caller_sid:
         socketio.emit('call_rejected', {}, room=caller_sid)
-        print(f'❌ Call rejected by user {user_id}')
 
 
 @socketio.on('call_end')
 def handle_call_end(data):
-    """Один из участников завершил звонок"""
     token = data.get('token')
     user_id = User.verify_token(token, app.config['SECRET_KEY'])
     if not user_id:
@@ -266,12 +259,10 @@ def handle_call_end(data):
         socketio.emit('call_ended', {
             'from_user_id': user_id
         }, room=target_sid)
-        print(f'🔚 Call ended by user {user_id}')
 
 
 @socketio.on('call_cancel')
 def handle_call_cancel(data):
-    """Инициатор отменил звонок (пока получатель не ответил)"""
     token = data.get('token')
     user_id = User.verify_token(token, app.config['SECRET_KEY'])
     if not user_id:
@@ -281,42 +272,57 @@ def handle_call_cancel(data):
     target_sid = connected_users.get(target_user_id)
     if target_sid:
         socketio.emit('call_cancelled', {}, room=target_sid)
-        print(f'🚫 Call cancelled by user {user_id}')
 
+
+# ==================== ЗАПУСК + МИГРАЦИЯ ====================
 
 with app.app_context():
     db.create_all()
     
-    # Автоматическая миграция
+    # Автоматическая миграция для email регистрации
     try:
         from sqlalchemy import text
         
+        # Добавляем колонку email в users
         db.session.execute(text(
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_messages VARCHAR(20) DEFAULT 'all'"
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(120) UNIQUE"
         ))
         
+        # Добавляем колонку email_verified
+        db.session.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE"
+        ))
+        
+        # Делаем phone nullable (для email регистрации)
+        try:
+            db.session.execute(text(
+                "ALTER TABLE users ALTER COLUMN phone DROP NOT NULL"
+            ))
+        except:
+            pass
+        
+        # Создаём таблицу кодов подтверждения
         db.session.execute(text("""
-            CREATE TABLE IF NOT EXISTS allowed_contacts (
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                contact_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            CREATE TABLE IF NOT EXISTS verification_codes (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(120) NOT NULL,
+                code VARCHAR(6) NOT NULL,
+                display_name VARCHAR(100) NOT NULL,
+                username VARCHAR(50),
+                password_hash VARCHAR(200) NOT NULL,
+                attempts INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (user_id, contact_id)
+                expires_at TIMESTAMP
             )
         """))
         
-        db.session.execute(text("""
-            CREATE TABLE IF NOT EXISTS message_requests (
-                id SERIAL PRIMARY KEY,
-                from_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                to_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                message_text VARCHAR(500),
-                status VARCHAR(20) DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """))
+        # Индекс для быстрого поиска
+        db.session.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_verification_email ON verification_codes(email)"
+        ))
         
         db.session.commit()
-        print("✅ Миграция БД выполнена")
+        print("✅ Миграция БД для email регистрации выполнена")
     except Exception as e:
         db.session.rollback()
         print(f"⚠️ Миграция: {e}")
@@ -326,5 +332,5 @@ with app.app_context():
 
 if __name__ == '__main__':
     os.makedirs('uploads', exist_ok=True)
-    print("🚀 NovaChat запущен")
+    print("🚀 NovaChat запущен на http://localhost:5000")
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)

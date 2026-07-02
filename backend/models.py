@@ -26,19 +26,13 @@ message_likes = db.Table('message_likes',
     db.Column('created_at', db.DateTime, default=datetime.utcnow)
 )
 
-# Разрешённые контакты (кому пользователь разрешил писать)
-allowed_contacts = db.Table('allowed_contacts',
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
-    db.Column('contact_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
-    db.Column('created_at', db.DateTime, default=datetime.utcnow)
-)
-
 
 class User(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
-    phone = db.Column(db.String(20), unique=True, nullable=False)
+    phone = db.Column(db.String(20), unique=True, nullable=True)
+    email = db.Column(db.String(120), unique=True, nullable=True)
     username = db.Column(db.String(50), unique=True, nullable=True)
     display_name = db.Column(db.String(100), nullable=False)
     bio = db.Column(db.String(500), default='')
@@ -47,9 +41,7 @@ class User(db.Model):
     is_online = db.Column(db.Boolean, default=False)
     last_seen = db.Column(db.DateTime, default=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Приватность: 'all' = все могут писать, 'contacts' = только одобренные
-    privacy_messages = db.Column(db.String(20), default='all')
+    email_verified = db.Column(db.Boolean, default=False)
 
     sent_messages = db.relationship('Message', backref='sender', lazy='dynamic',
                                      foreign_keys='Message.sender_id')
@@ -87,6 +79,7 @@ class User(db.Model):
         return {
             'id': self.id,
             'phone': self.phone,
+            'email': self.email,
             'username': self.username,
             'display_name': self.display_name,
             'bio': self.bio,
@@ -94,8 +87,32 @@ class User(db.Model):
             'is_online': self.is_online,
             'last_seen': self.last_seen.isoformat() + 'Z' if self.last_seen else None,
             'created_at': self.created_at.isoformat() + 'Z',
-            'privacy_messages': self.privacy_messages or 'all'
+            'email_verified': self.email_verified or False
         }
+
+
+class VerificationCode(db.Model):
+    """Коды подтверждения для регистрации по email"""
+    __tablename__ = 'verification_codes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), nullable=False, index=True)
+    code = db.Column(db.String(6), nullable=False)
+    
+    # Данные для создания аккаунта после проверки кода
+    display_name = db.Column(db.String(100), nullable=False)
+    username = db.Column(db.String(50), nullable=True)
+    password_hash = db.Column(db.String(200), nullable=False)
+    
+    attempts = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime)
+
+    def is_expired(self):
+        return datetime.utcnow() > self.expires_at
+
+    def is_valid(self, entered_code):
+        return not self.is_expired() and self.code == entered_code and self.attempts < 5
 
 
 class Chat(db.Model):
@@ -273,30 +290,5 @@ class Comment(db.Model):
             'text': self.text,
             'message_id': self.message_id,
             'user': self.user.to_dict(),
-            'created_at': self.created_at.isoformat() + 'Z'
-        }
-
-
-class MessageRequest(db.Model):
-    """Заявки на переписку от посторонних пользователей"""
-    __tablename__ = 'message_requests'
-
-    id = db.Column(db.Integer, primary_key=True)
-    from_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    to_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    message_text = db.Column(db.String(500), nullable=True)
-    status = db.Column(db.String(20), default='pending')  # pending, accepted, rejected
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    from_user = db.relationship('User', foreign_keys=[from_user_id])
-    to_user = db.relationship('User', foreign_keys=[to_user_id])
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'from_user': self.from_user.to_dict() if self.from_user else None,
-            'to_user_id': self.to_user_id,
-            'message_text': self.message_text,
-            'status': self.status,
             'created_at': self.created_at.isoformat() + 'Z'
         }
