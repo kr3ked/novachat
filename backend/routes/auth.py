@@ -17,21 +17,16 @@ def validate_phone(phone):
 
 
 def validate_email(email):
-    """Простая проверка email"""
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email))
 
 
 def generate_code():
-    """Генерирует 6-значный код"""
     return ''.join([str(random.randint(0, 9)) for _ in range(6)])
 
 
-# ==================== EMAIL РЕГИСТРАЦИЯ ====================
-
 @auth_bp.route('/send-code', methods=['POST'])
 def send_code():
-    """Отправить код подтверждения на email"""
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Нет данных'}), 400
@@ -89,7 +84,7 @@ def send_code():
     success, error = email_service.send_verification_code(email, code, display_name)
 
     if not success:
-        return jsonify({'error': error or 'Не удалось отправить письмо. Проверьте email.'}), 500
+        return jsonify({'error': error or 'Не удалось отправить письмо.'}), 500
 
     return jsonify({
         'message': 'Код отправлен на ваш email',
@@ -100,7 +95,6 @@ def send_code():
 
 @auth_bp.route('/verify-code', methods=['POST'])
 def verify_code():
-    """Проверить код и создать аккаунт"""
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Нет данных'}), 400
@@ -129,15 +123,13 @@ def verify_code():
     if verification.attempts >= 5:
         db.session.delete(verification)
         db.session.commit()
-        return jsonify({'error': 'Слишком много попыток. Отправьте новый код.'}), 429
+        return jsonify({'error': 'Слишком много попыток.'}), 429
 
     if verification.code != code:
         verification.attempts += 1
         db.session.commit()
         remaining = 5 - verification.attempts
-        return jsonify({
-            'error': f'Неверный код. Осталось попыток: {remaining}'
-        }), 400
+        return jsonify({'error': f'Неверный код. Осталось попыток: {remaining}'}), 400
 
     if User.query.filter_by(email=email).first():
         db.session.delete(verification)
@@ -152,7 +144,6 @@ def verify_code():
         email_verified=True
     )
     db.session.add(user)
-
     db.session.delete(verification)
     db.session.commit()
 
@@ -172,7 +163,6 @@ def verify_code():
 
 @auth_bp.route('/resend-code', methods=['POST'])
 def resend_code():
-    """Отправить код повторно"""
     data = request.get_json()
     email = data.get('email', '').strip().lower()
 
@@ -184,12 +174,12 @@ def resend_code():
     ).first()
 
     if not verification:
-        return jsonify({'error': 'Заявка не найдена. Начните регистрацию заново.'}), 404
+        return jsonify({'error': 'Заявка не найдена.'}), 404
 
     time_since = (datetime.utcnow() - verification.created_at).total_seconds()
     if time_since < 60:
         wait = int(60 - time_since)
-        return jsonify({'error': f'Подождите {wait} секунд перед повторной отправкой'}), 429
+        return jsonify({'error': f'Подождите {wait} секунд'}), 429
 
     new_code = generate_code()
     verification.code = new_code
@@ -211,11 +201,8 @@ def resend_code():
     }), 200
 
 
-# ==================== СТАРАЯ РЕГИСТРАЦИЯ ПО ТЕЛЕФОНУ ====================
-
 @auth_bp.route('/register', methods=['POST'])
 def register():
-    """Старая регистрация по телефону (для совместимости)"""
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Нет данных'}), 400
@@ -267,11 +254,8 @@ def register():
     }), 201
 
 
-# ==================== ВХОД ====================
-
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    """Вход по email или телефону"""
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Нет данных'}), 400
@@ -325,8 +309,6 @@ def check_auth():
     return jsonify({'user': user.to_dict()}), 200
 
 
-# ==================== УДАЛЕНИЕ АККАУНТА (ПОЛНОЕ) ====================
-
 @auth_bp.route('/delete-account', methods=['POST'])
 def delete_account():
     """Полное удаление аккаунта со всеми зависимостями"""
@@ -352,44 +334,33 @@ def delete_account():
     user_id = user.id
 
     try:
-        # 1. Удаляем реакции пользователя
         db.session.execute(text("DELETE FROM message_likes WHERE user_id = :uid"), {"uid": user_id})
-        
-        # 2. Удаляем комментарии пользователя
         db.session.execute(text("DELETE FROM comments WHERE user_id = :uid"), {"uid": user_id})
         
-        # 3. Удаляем комментарии к сообщениям пользователя
         db.session.execute(text("""
             DELETE FROM comments 
             WHERE message_id IN (SELECT id FROM messages WHERE sender_id = :uid)
         """), {"uid": user_id})
         
-        # 4. Удаляем реакции на сообщения пользователя
         db.session.execute(text("""
             DELETE FROM message_likes 
             WHERE message_id IN (SELECT id FROM messages WHERE sender_id = :uid)
         """), {"uid": user_id})
         
-        # 5. Обнуляем ссылки reply на сообщения пользователя
         db.session.execute(text("""
             UPDATE messages SET reply_to_id = NULL 
             WHERE reply_to_id IN (SELECT id FROM messages WHERE sender_id = :uid)
         """), {"uid": user_id})
         
-        # 6. Обнуляем ссылки forward на сообщения пользователя
         db.session.execute(text("""
             UPDATE messages SET forwarded_from_id = NULL, forwarded_from_user_id = NULL
             WHERE forwarded_from_id IN (SELECT id FROM messages WHERE sender_id = :uid)
                OR forwarded_from_user_id = :uid
         """), {"uid": user_id})
         
-        # 7. Удаляем из чатов
         db.session.execute(text("DELETE FROM chat_members WHERE user_id = :uid"), {"uid": user_id})
-        
-        # 8. Удаляем из каналов
         db.session.execute(text("DELETE FROM channel_subscribers WHERE user_id = :uid"), {"uid": user_id})
         
-        # 9. Обрабатываем каналы пользователя (полное удаление)
         owned_channels = db.session.execute(text(
             "SELECT id FROM channels WHERE owner_id = :uid"
         ), {"uid": user_id}).fetchall()
@@ -397,19 +368,16 @@ def delete_account():
         for row in owned_channels:
             ch_id = row[0]
             
-            # Удаляем реакции на посты канала
             db.session.execute(text("""
                 DELETE FROM message_likes 
                 WHERE message_id IN (SELECT id FROM messages WHERE channel_id = :cid)
             """), {"cid": ch_id})
             
-            # Удаляем комментарии к постам канала
             db.session.execute(text("""
                 DELETE FROM comments 
                 WHERE message_id IN (SELECT id FROM messages WHERE channel_id = :cid)
             """), {"cid": ch_id})
             
-            # Обнуляем ссылки на посты канала
             db.session.execute(text("""
                 UPDATE messages SET reply_to_id = NULL 
                 WHERE reply_to_id IN (SELECT id FROM messages WHERE channel_id = :cid)
@@ -420,25 +388,21 @@ def delete_account():
                 WHERE forwarded_from_id IN (SELECT id FROM messages WHERE channel_id = :cid)
             """), {"cid": ch_id})
             
-            # Удаляем подписчиков канала
             db.session.execute(text("DELETE FROM channel_subscribers WHERE channel_id = :cid"), {"cid": ch_id})
-            
-            # Удаляем ВСЕ посты канала
             db.session.execute(text("DELETE FROM messages WHERE channel_id = :cid"), {"cid": ch_id})
-            
-            # Удаляем сам канал
             db.session.execute(text("DELETE FROM channels WHERE id = :cid"), {"cid": ch_id})
         
-        # 10. Удаляем оставшиеся сообщения пользователя
         db.session.execute(text("DELETE FROM messages WHERE sender_id = :uid"), {"uid": user_id})
         
-        # 11. Удаляем пустые приватные чаты
+        db.session.execute(text("""
+            UPDATE chats SET created_by = NULL WHERE created_by = :uid
+        """), {"uid": user_id})
+        
         db.session.execute(text("""
             DELETE FROM chats 
             WHERE id NOT IN (SELECT DISTINCT chat_id FROM chat_members WHERE chat_id IS NOT NULL)
         """))
         
-        # 12. Удаляем самого пользователя
         db.session.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": user_id})
         
         db.session.commit()
